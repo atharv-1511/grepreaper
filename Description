@@ -1,0 +1,17 @@
+Package: grepreaper
+Title: Efficient File Reading with Grep in R
+Version: 0.1.0
+Authors@R: person("Atharv", "Raskar", email = "raskaratharv28@gmail.com", role = c("aut", "cre"))
+Description: Provides a suite of functions for efficient file reading and pattern matching using 
+    the power of 'grep' at the command line. Enables counting matches, extracting matching lines,
+    finding files with matches, and viewing context lines around matches. Supports reading and 
+    aggregating data from multiple files, searching with regular expressions or fixed patterns,
+    and handling large files efficiently.
+License: MIT + file LICENSE
+Depends: R (>= 3.5.0)
+Imports: data.table, utils
+Suggests: testthat, knitr, rmarkdown
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.1
+VignetteBuilder: knitr

@@ -1,0 +1,5 @@
+export(grep_count)
+export(grep_read)
+export(grep_files)
+export(grep_context)
+import(data.table)
