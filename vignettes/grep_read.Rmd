@@ -20,13 +20,42 @@ knitr::opts_chunk$set(
 
 The `grep_read` package provides an efficient way to read and filter data from files using grep patterns. This vignette demonstrates how to use the package's features through practical examples.
 
+## System Requirements
+
+The package requires the `grep` command-line tool to be available on your system. Here's what you need to know for different operating systems:
+
+### Windows
+- Install Git for Windows (recommended) which includes Git Bash with grep
+- Or install MSYS2 and run `pacman -S grep`
+- Or use Windows Subsystem for Linux (WSL)
+
+### MacOS
+- grep is included by default
+- If missing, install via Homebrew: `brew install grep`
+- Or install via MacPorts: `sudo port install grep`
+
+### Linux
+- grep is typically pre-installed
+- If missing, install using your package manager:
+  - Debian/Ubuntu: `sudo apt-get install grep`
+  - RHEL/CentOS: `sudo yum install grep`
+  - Arch Linux: `sudo pacman -S grep`
+
+You can check if grep is available on your system using:
+
+```{r check_grep}
+# Check grep availability
+grep_check <- check_grep_availability()
+print(grep_check)
+```
+
 # Basic Usage
 
-## Reading from a Single File
+## Reading All Lines
 
-Let's start with a simple example of reading data from a CSV file:
+You can read all lines from a file by using the default empty pattern:
 
-```{r basic_usage}
+```{r read_all}
 # Create a sample CSV file
 sample_data <- data.frame(
   department = c("IT", "HR", "IT", "Finance", "IT"),
@@ -35,38 +64,70 @@ sample_data <- data.frame(
 )
 write.csv(sample_data, "sample_data.csv", row.names = FALSE)
 
-# Read only IT department employees
+# Read all lines
+all_data <- grep_read("sample_data.csv")
+print(all_data)
+```
+
+## Preserving Column Names
+
+The function automatically preserves column names from the source file:
+
+```{r column_names}
+# Read with original column names
 it_employees <- grep_read("sample_data.csv", "IT")
 print(it_employees)
+
+# Read with custom column names
+custom_names <- c("dept", "name", "salary")
+it_employees_custom <- grep_read("sample_data.csv", "IT", col.names = custom_names)
+print(it_employees_custom)
 ```
 
-## Case-Insensitive Matching
+## Reading from Multiple Files
 
-You can perform case-insensitive searches:
+When reading from multiple files, you can track the source of each row:
 
-```{r case_insensitive}
-# Read employees with 'it' in any case
-it_employees_any_case <- grep_read("sample_data.csv", "it", ignore_case = TRUE)
-print(it_employees_any_case)
-```
-
-## Word Matching
-
-To match whole words only:
-
-```{r word_matching}
-# Create a file with similar words
-similar_words <- data.frame(
-  text = c("IT department", "FIT test", "IT", "HIT the target")
+```{r multiple_files}
+# Create two sample files
+file1_data <- data.frame(
+  department = c("IT", "HR"),
+  employee = c("John", "Alice")
 )
-write.csv(similar_words, "similar_words.csv", row.names = FALSE)
+file2_data <- data.frame(
+  department = c("IT", "Finance"),
+  employee = c("Bob", "Charlie")
+)
 
-# Match only whole word "IT"
-whole_word_matches <- grep_read("similar_words.csv", "IT", word_match = TRUE)
-print(whole_word_matches)
+write.csv(file1_data, "file1.csv", row.names = FALSE)
+write.csv(file2_data, "file2.csv", row.names = FALSE)
+
+# Read from both files with source tracking
+all_it_employees <- grep_read(
+  c("file1.csv", "file2.csv"),
+  "IT",
+  include_filename = TRUE
+)
+print(all_it_employees)
 ```
 
-# Advanced Features
+## Progress Indicators
+
+For large files, you can enable progress indicators:
+
+```{r progress}
+# Create a large sample file
+large_data <- data.frame(
+  department = rep(c("IT", "HR", "Finance"), 1000),
+  employee = paste0("Employee", 1:3000),
+  salary = sample(50000:100000, 3000)
+)
+write.csv(large_data, "large_data.csv", row.names = FALSE)
+
+# Read with progress indicator
+it_employees_large <- grep_read("large_data.csv", "IT", show_progress = TRUE)
+print(head(it_employees_large))
+```
 
 ## Line Numbers
 
@@ -78,7 +139,7 @@ it_employees_with_lines <- grep_read("sample_data.csv", "IT", show_line_numbers 
 print(it_employees_with_lines)
 ```
 
-## Count Matching Lines
+## Count Only
 
 Get a count of matching lines instead of the actual content:
 
@@ -96,76 +157,150 @@ multi_file_counts <- grep_read(
 print(multi_file_counts)
 ```
 
-## Multiple Files
+# Advanced Features
 
-Reading from multiple files with source tracking:
+## Pattern Matching Options
 
-```{r multiple_files}
-# Create two sample files
-file1_data <- data.frame(
-  department = c("IT", "HR"),
-  employee = c("John", "Alice")
+The function supports various pattern matching options:
+
+```{r pattern_matching}
+# Case-insensitive matching
+it_employees_any_case <- grep_read("sample_data.csv", "it", ignore_case = TRUE)
+print(it_employees_any_case)
+
+# Word matching (exact words only)
+similar_words <- data.frame(
+  text = c("IT department", "FIT test", "IT", "HIT the target")
 )
-file2_data <- data.frame(
-  department = c("IT", "Finance"),
-  employee = c("Bob", "Charlie")
-)
+write.csv(similar_words, "similar_words.csv", row.names = FALSE)
+whole_word_matches <- grep_read("similar_words.csv", "IT", word_match = TRUE)
+print(whole_word_matches)
 
-write.csv(file1_data, "file1.csv", row.names = FALSE)
-write.csv(file2_data, "file2.csv", row.names = FALSE)
+# Fixed string matching (no regex)
+fixed_matches <- grep_read("sample_data.csv", "IT", fixed = TRUE)
+print(fixed_matches)
 
-# Read from both files
-all_it_employees <- grep_read(
-  c("file1.csv", "file2.csv"),
-  "IT",
-  include_filename = TRUE
-)
-print(all_it_employees)
-```
-
-## Inverted Search
-
-Find rows that don't match the pattern:
-
-```{r inverted_search}
-# Find non-IT employees
+# Inverted search (non-matching lines)
 non_it_employees <- grep_read("sample_data.csv", "IT", invert = TRUE)
 print(non_it_employees)
 ```
 
+## Reading Large Files
+
+For large files, you can use various options to control memory usage:
+
+```{r large_files}
+# Create a large sample file
+large_data <- data.frame(
+  department = rep(c("IT", "HR", "Finance"), 1000),
+  employee = paste0("Employee", 1:3000),
+  salary = sample(50000:100000, 3000)
+)
+write.csv(large_data, "large_data.csv", row.names = FALSE)
+
+# Read with row limits
+top_10_it <- grep_read("large_data.csv", "IT", nrows = 10)
+print(top_10_it)
+
+# Skip initial rows
+skip_first_100 <- grep_read("large_data.csv", "IT", skip = 100)
+print(head(skip_first_100))
+
+# Disable progress for better performance
+fast_read <- grep_read("large_data.csv", "IT", show_progress = FALSE)
+print(head(fast_read))
+```
+
 ## Recursive Directory Search
 
-Search through directories recursively:
+You can search through directories recursively:
 
 ```{r recursive_search}
 # Create a directory structure
 dir.create("data", showWarnings = FALSE)
 file.copy("sample_data.csv", "data/sample_data.csv")
+file.copy("file1.csv", "data/file1.csv")
+file.copy("file2.csv", "data/file2.csv")
 
 # Search recursively
 recursive_results <- grep_read("data", "IT", recursive = TRUE)
 print(recursive_results)
+
+# Search recursively with line numbers
+recursive_with_lines <- grep_read("data", "IT", recursive = TRUE, show_line_numbers = TRUE)
+print(recursive_with_lines)
+```
+
+## Error Handling
+
+The function provides clear error messages for common issues:
+
+```{r error_handling}
+# Non-existent file
+tryCatch(
+  grep_read("nonexistent.csv", "IT"),
+  error = function(e) print(e$message)
+)
+
+# Invalid pattern
+tryCatch(
+  grep_read("sample_data.csv", pattern = c("a", "b")),
+  error = function(e) print(e$message)
+)
+
+# Empty files vector
+tryCatch(
+  grep_read(character(0), "IT"),
+  error = function(e) print(e$message)
+)
+```
+
+## Combining Features
+
+You can combine multiple features for powerful data extraction:
+
+```{r combined_features}
+# Read from multiple files with line numbers and custom column names
+custom_names <- c("dept", "name", "pay")
+multi_file_with_lines <- grep_read(
+  c("file1.csv", "file2.csv"),
+  "IT",
+  include_filename = TRUE,
+  show_line_numbers = TRUE,
+  col.names = custom_names
+)
+print(multi_file_with_lines)
+
+# Count matches with word matching
+word_match_counts <- grep_read(
+  "similar_words.csv",
+  "IT",
+  word_match = TRUE,
+  count_only = TRUE
+)
+print(word_match_counts)
+
+# Recursive search with case-insensitive matching
+recursive_case_insensitive <- grep_read(
+  "data",
+  "it",
+  recursive = TRUE,
+  ignore_case = TRUE,
+  show_line_numbers = TRUE
+)
+print(recursive_case_insensitive)
+```
+
+# Cleanup
+
+```{r cleanup, include = FALSE}
+# Remove sample files and directories
+unlink(c("sample_data.csv", "file1.csv", "file2.csv", 
+         "large_data.csv", "similar_words.csv"))
+unlink("data", recursive = TRUE)
 ```
 
 # Best Practices
-
-## Handling Headers
-
-When reading from multiple files, the package automatically handles headers:
-
-```{r headers}
-# Create files with headers
-write.csv(file1_data, "data/file1.csv", row.names = FALSE)
-write.csv(file2_data, "data/file2.csv", row.names = FALSE)
-
-# Read with proper header handling
-multi_file_data <- grep_read(
-  c("data/file1.csv", "data/file2.csv"),
-  "IT",
-  include_filename = TRUE
-)
-print(multi_file_data)
-```
 
 ## Performance Tips
 
@@ -174,26 +309,22 @@ print(multi_file_data)
 3. Use `nrows` parameter to limit the number of rows read
 4. Use `skip` parameter to skip initial rows
 5. Use `count_only = TRUE` when you only need the number of matches
+6. Disable progress indicators (`show_progress = FALSE`) for better performance in scripts
+7. Use `ignore_case = TRUE` instead of case-insensitive patterns for better performance
+8. Use `recursive = TRUE` with caution on large directory structures
 
 ```{r performance}
-# Efficient reading with parameters
+# Efficient reading with multiple optimizations
 efficient_read <- grep_read(
   "sample_data.csv",
   "IT",
   fixed = TRUE,
   word_match = TRUE,
-  nrows = 10
+  nrows = 10,
+  show_progress = FALSE,
+  ignore_case = TRUE
 )
 print(efficient_read)
-```
-
-# Cleanup
-
-```{r cleanup, include = FALSE}
-# Remove sample files
-unlink(c("sample_data.csv", "similar_words.csv", 
-         "file1.csv", "file2.csv", "data/sample_data.csv"))
-unlink("data", recursive = TRUE)
 ```
 
 # Conclusion
@@ -205,3 +336,6 @@ The `grep_read` package provides a powerful and efficient way to filter and read
 - You need to search across multiple files
 - You want to maintain the relationship between data and its source files
 - You need to quickly count matching lines across files
+- You want to preserve column names and structure of your data
+- You need to search recursively through directories
+- You want to combine multiple search features for complex data extraction

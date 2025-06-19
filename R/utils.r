@@ -1,19 +1,117 @@
 #' Check if grep is available in the system
 #' 
 #' This function checks if the grep command is available in the system.
+#' It performs platform-specific checks and provides detailed error messages.
 #' 
-#' @return Logical value: TRUE if grep is available, FALSE otherwise.
+#' @return A list with the following components:
+#' \itemize{
+#'   \item available: Logical indicating if grep is available
+#'   \item version: Character string with grep version (if available)
+#'   \item path: Character string with path to grep executable (if found)
+#'   \item error: Character string with error message (if any)
+#' }
 #' 
 #' @keywords internal
 check_grep_availability <- function() {
-  tryCatch({
-    system("grep --version", intern = TRUE, ignore.stdout = TRUE, ignore.stderr = TRUE)
-    return(TRUE)
-  }, error = function(e) {
-    return(FALSE)
-  }, warning = function(w) {
-    return(FALSE)
-  })
+  # Get system information
+  sys_info <- get_system_info()
+  
+  # Initialize result
+  result <- list(
+    available = FALSE,
+    version = NULL,
+    path = NULL,
+    error = NULL
+  )
+  
+  # Check for grep using which/where
+  grep_path <- tryCatch({
+    if (sys_info$is_windows) {
+      # Try multiple methods on Windows
+      paths <- c(
+        system("where grep", intern = TRUE, ignore.stderr = TRUE),
+        system("where.exe grep", intern = TRUE, ignore.stderr = TRUE),
+        system("git --exec-path", intern = TRUE, ignore.stderr = TRUE)
+      )
+      # Filter out empty results and take the first valid path
+      paths <- paths[paths != ""]
+      if (length(paths) > 0) paths[1] else NULL
+    } else {
+      # On Unix-like systems, try which and type
+      paths <- c(
+        system("which grep", intern = TRUE, ignore.stderr = TRUE),
+        system("type -p grep", intern = TRUE, ignore.stderr = TRUE)
+      )
+      # Filter out empty results and take the first valid path
+      paths <- paths[paths != ""]
+      if (length(paths) > 0) paths[1] else NULL
+    }
+  }, error = function(e) NULL)
+  
+  if (!is.null(grep_path)) {
+    result$path <- grep_path
+  }
+  
+  # Try to get grep version with different commands
+  version_cmds <- if (sys_info$is_windows) {
+    c("grep --version", "grep -V")
+  } else {
+    c("grep --version 2>&1", "grep -V 2>&1")
+  }
+  
+  for (cmd in version_cmds) {
+    tryCatch({
+      version_output <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
+      if (length(version_output) > 0) {
+        result$version <- version_output[1]
+        result$available <- TRUE
+        break
+      }
+    }, error = function(e) {
+      # Continue to next command if this one fails
+    }, warning = function(w) {
+      # Continue to next command if this one fails
+    })
+  }
+  
+  # If grep is not available, provide platform-specific guidance
+  if (!result$available) {
+    if (sys_info$is_windows) {
+      result$error <- paste(
+        "grep not found. On Windows, you can install grep through:",
+        "1. Git Bash (recommended): Install Git for Windows",
+        "2. MSYS2: Install MSYS2 and run 'pacman -S grep'",
+        "3. WSL: Install Windows Subsystem for Linux",
+        "",
+        "Note: If you have Git for Windows installed, make sure it's in your PATH.",
+        sep = "\n"
+      )
+    } else if (sys_info$os_name == "Darwin") {  # MacOS
+      result$error <- paste(
+        "grep not found. On MacOS, grep should be available by default.",
+        "If it's missing, you can install it through:",
+        "1. Homebrew: 'brew install grep'",
+        "2. MacPorts: 'sudo port install grep'",
+        "",
+        "Note: If you've installed grep through Homebrew, you might need to:",
+        "1. Add Homebrew's bin directory to your PATH",
+        "2. Use the full path: /usr/local/bin/grep or /opt/homebrew/bin/grep",
+        sep = "\n"
+      )
+    } else {  # Linux and other Unix-like systems
+      result$error <- paste(
+        "grep not found. On Unix-like systems, install grep using your package manager:",
+        "1. Debian/Ubuntu: 'sudo apt-get install grep'",
+        "2. RHEL/CentOS: 'sudo yum install grep'",
+        "3. Arch Linux: 'sudo pacman -S grep'",
+        "",
+        "Note: If grep is installed but not found, check your PATH environment variable.",
+        sep = "\n"
+      )
+    }
+  }
+  
+  return(result)
 }
 
 #' Build a grep command with proper escaping and options
@@ -31,9 +129,10 @@ check_grep_availability <- function() {
 #' @keywords internal
 build_grep_cmd <- function(pattern, files, options = "", count = FALSE) {
   # Check if grep is available
-  if (!check_grep_availability()) {
-    stop("The 'grep' command is not available on this system. ",
-         "Please install grep or ensure it's in your PATH.")
+  grep_check <- check_grep_availability()
+  if (!grep_check$available) {
+    stop("The 'grep' command is not available on this system.\n",
+         grep_check$error)
   }
   
   # Add count option if requested
@@ -87,7 +186,6 @@ get_system_info <- function() {
     os_type = os_type,
     os_name = os_name,
     is_windows = os_type == "windows",
-    is_unix = os_type == "unix",
-    has_grep = check_grep_availability()
+    is_unix = os_type == "unix"
   )
 }

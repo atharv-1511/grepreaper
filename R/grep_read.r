@@ -4,7 +4,7 @@
 #' It allows for flexible pattern matching and leverages data.table's fread for efficient data import.
 #' 
 #' @param files Character vector of file paths.
-#' @param pattern Pattern to search for.
+#' @param pattern Pattern to search for. Default is empty string (''), which reads all lines.
 #' @param invert Logical; if TRUE, return non-matching lines (using grep -v).
 #' @param ignore_case Logical; if TRUE, perform case-insensitive matching.
 #' @param fixed Logical; if TRUE, pattern is a fixed string, not a regular expression.
@@ -18,6 +18,7 @@
 #' @param header Logical; if TRUE, treat first row as header. If FALSE, no header is used.
 #' @param col.names Character vector of column names, passed to fread.
 #' @param include_filename Logical; if TRUE, include source filename as a column (default: TRUE for multiple files).
+#' @param show_progress Logical; if TRUE, show progress indicators for large files.
 #' @param ... Additional arguments passed to fread.
 #' 
 #' @return A data.table containing the matched data (or command string if show_cmd=TRUE).
@@ -25,6 +26,9 @@
 #' 
 #' @examples
 #' \dontrun{
+#' # Read all lines from sample_data.csv
+#' all_data <- grep_read("data/sample_data.csv")
+#' 
 #' # Read lines containing "IT" from sample_data.csv
 #' it_employees <- grep_read("data/sample_data.csv", "IT")
 #' 
@@ -41,13 +45,19 @@
 #' match_counts <- grep_read("data/sample_data.csv", "IT", count_only = TRUE)
 #' }
 #' 
-#' @importFrom data.table fread
+#' @importFrom data.table fread setnames
 #' @export
-grep_read <- function(files, pattern, invert = FALSE, ignore_case = FALSE, 
+grep_read <- function(files, pattern = '', invert = FALSE, ignore_case = FALSE, 
                       fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                       word_match = FALSE, show_line_numbers = FALSE,
                       count_only = FALSE, nrows = Inf, skip = 0, 
-                      header = TRUE, col.names = NULL, include_filename = NULL, ...) {
+                      header = TRUE, col.names = NULL, include_filename = NULL,
+                      show_progress = TRUE, ...) {
+  
+  # Ensure data.table is available
+  if (!requireNamespace("data.table", quietly = TRUE)) {
+    stop("The 'data.table' package is required but not installed. Please install it via install.packages('data.table').")
+  }
   
   # Input validation
   if (!is.character(files) || length(files) == 0) {
@@ -85,93 +95,84 @@ grep_read <- function(files, pattern, invert = FALSE, ignore_case = FALSE,
     return(cmd)
   }
   
-  # Execute grep command
-  result <- safe_system_call(cmd)
+  # Get column names from first file if header is TRUE
+  if (header && !count_only) {
+    tryCatch({
+      # Read first row of first file to get column names
+      first_file_cols <- names(fread(files[1], nrows = 1, header = TRUE))
+      if (is.null(col.names)) {
+        col.names <- first_file_cols
+      }
+    }, error = function(e) {
+      warning("Could not read headers from first file: ", e$message)
+    })
+  }
   
-  # If no results, return empty data.table with appropriate structure
-  if (length(result) == 0) {
+  # Show progress message for large files
+  if (show_progress && !count_only) {
+    message("Reading data from ", length(files), " file(s)...")
+  }
+  
+  # Execute grep command and read data
+  tryCatch({
     if (count_only) {
-      return(data.table::data.table(file = files, count = 0))
-    }
-    return(data.table::data.table())
-  }
-  
-  # Handle count-only results
-  if (count_only) {
-    # Parse the count results
-    count_data <- lapply(result, function(line) {
-      parts <- strsplit(line, ":", fixed = TRUE)[[1]]
-      if (length(parts) == 2) {
-        return(list(file = parts[1], count = as.integer(parts[2])))
-      } else {
-        return(list(file = "unknown", count = as.integer(line)))
+      # Handle count-only results
+      result <- safe_system_call(cmd)
+      
+      if (length(result) == 0) {
+        return(data.table::data.table(file = files, count = 0))
       }
-    })
-    
-    # Create a data.table with the counts
-    counts <- data.table::data.table(
-      file = sapply(count_data, function(x) x$file),
-      count = sapply(count_data, function(x) x$count)
-    )
-    return(counts)
-  }
-  
-  # For multiple files or when include_filename is TRUE, create a combined data frame with a source column
-  if (include_filename && any(grepl(":", result, fixed = TRUE))) {
-    # Results will be in format "filename:content" or "filename:line_number:content"
-    # Split the results and create a data table with source information
-    split_results <- lapply(result, function(line) {
-      # Find the first colon that separates filename from content
-      colon_pos <- regexpr(":", line, fixed = TRUE)
-      if (colon_pos > 0) {
-        filename <- substr(line, 1, colon_pos - 1)
-        remaining <- substr(line, colon_pos + 1, nchar(line))
-        
-        # Handle line numbers if present
-        if (show_line_numbers) {
-          second_colon <- regexpr(":", remaining, fixed = TRUE)
-          if (second_colon > 0) {
-            line_number <- substr(remaining, 1, second_colon - 1)
-            content <- substr(remaining, second_colon + 1, nchar(remaining))
-            return(list(filename = filename, line_number = as.integer(line_number), content = content))
-          }
+      
+      # Parse the count results
+      count_data <- lapply(result, function(line) {
+        parts <- strsplit(line, ":", fixed = TRUE)[[1]]
+        if (length(parts) == 2) {
+          return(list(file = parts[1], count = as.integer(parts[2])))
+        } else {
+          return(list(file = "unknown", count = as.integer(line)))
         }
-        return(list(filename = filename, content = remaining))
-      } else {
-        return(list(filename = "unknown", content = line))
+      })
+      
+      # Create a data.table with the counts
+      counts <- data.table::data.table(
+        file = sapply(count_data, function(x) x$file),
+        count = sapply(count_data, function(x) x$count)
+      )
+      return(counts)
+    } else {
+      # Read data directly using fread with cmd parameter
+      dt <- fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
+      
+      # If we have column names, apply them
+      if (!is.null(col.names)) {
+        setnames(dt, names(dt), col.names)
       }
-    })
-    
-    # Extract components
-    filenames <- sapply(split_results, function(x) x$filename)
-    contents <- sapply(split_results, function(x) x$content)
-    
-    # Create a temporary file to store the content
-    temp_file <- tempfile(fileext = ".csv")
-    writeLines(contents, temp_file)
-    
-    # Read the data with fread
-    dt <- data.table::fread(temp_file, header = header, 
-                           nrows = nrows, skip = skip, col.names = col.names, ...)
-    
-    # Add the source column
-    dt[, source_file := filenames]
-    
-    # Add line numbers if requested
-    if (show_line_numbers) {
-      line_numbers <- sapply(split_results, function(x) x$line_number)
-      dt[, line_number := line_numbers]
+      
+      # Handle filename column if needed
+      if (include_filename && any(grepl(":", dt[[1]], fixed = TRUE))) {
+        # Split filename and content
+        split_cols <- tstrsplit(dt[[1]], ":", fixed = TRUE)
+        if (length(split_cols) == 2) {
+          dt[, source_file := split_cols[[1]]]
+          dt[, (1) := split_cols[[2]]]
+        }
+      }
+      
+      # Handle line numbers if requested
+      if (show_line_numbers && any(grepl(":", dt[[1]], fixed = TRUE))) {
+        # Split line number and content
+        split_cols <- tstrsplit(dt[[1]], ":", fixed = TRUE)
+        if (length(split_cols) == 2) {
+          dt[, line_number := as.integer(split_cols[[1]])]
+          dt[, (1) := split_cols[[2]]]
+        }
+      }
+      
+      return(dt)
     }
-    
-    # Clean up temporary file
-    unlink(temp_file)
-    
-    return(dt)
-  } else {
-    # Single file or recursive case - direct read
-    dt <- data.table::fread(text = paste(result, collapse = "\n"), 
-                           header = header, nrows = nrows, 
-                           skip = skip, col.names = col.names, ...)
-    return(dt)
-  }
+  }, error = function(e) {
+    stop("Error reading data: ", e$message)
+  }, warning = function(w) {
+    warning("Warning while reading data: ", w$message)
+  })
 }
