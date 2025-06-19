@@ -14,15 +14,14 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
-# Make sure grep is available before running examples
-has_grep <- grepreaper:::check_grep_availability()
+library(grepreaper)
 ```
 
 ## Overview
 
 The **grepreaper** package provides efficient file reading functions by leveraging the power of the command-line `grep` utility. It enables R users to filter, search, and read data from files based on pattern matching, without having to learn command-line syntax.
 
-This vignette introduces the main functions of the package and demonstrates their use with examples.
+This vignette introduces the main function of the package and demonstrates its use with examples.
 
 ## Installation
 
@@ -57,32 +56,11 @@ write.csv(data.frame(
 ), temp_file, row.names = FALSE)
 ```
 
-## Counting Matches with `grep_count()`
-
-The `grep_count()` function counts how many lines in a file match a given pattern:
-
-```{r, eval=has_grep}
-# Count employees in the IT department
-grep_count(temp_file, "IT")
-
-# Count employees NOT in the IT department
-grep_count(temp_file, "IT", invert = TRUE)
-
-# Case-insensitive search
-grep_count(temp_file, "hr", ignore_case = TRUE)
-```
-
-If you're curious about the command being used, set `show_cmd = TRUE`:
-
-```{r, eval=has_grep}
-grep_count(temp_file, "IT", show_cmd = TRUE)
-```
-
 ## Reading Filtered Data with `grep_read()`
 
 The `grep_read()` function filters data based on a pattern and returns a data.table:
 
-```{r, eval=has_grep}
+```{r}
 # Read rows containing "IT"
 it_employees <- grep_read(temp_file, "IT")
 print(it_employees)
@@ -94,70 +72,16 @@ print(other_employees)
 
 The function accepts many of the same parameters as `data.table::fread()`:
 
-```{r, eval=has_grep}
+```{r}
 # Specify column names
 grep_read(temp_file, "IT", col.names = c("EmpID", "EmpName", "Dept", "Compensation"))
-```
-
-## Finding Files with `grep_files()`
-
-When working with multiple files, `grep_files()` helps you identify which files contain a specific pattern:
-
-```{r, eval=has_grep}
-# Create multiple files with different content
-temp_files <- c(file1 = tempfile(), file2 = tempfile(), file3 = tempfile())
-writeLines("Contains IT department data", temp_files[1])
-writeLines("Contains HR department data", temp_files[2])
-writeLines("Contains Finance department data", temp_files[3])
-
-# Find files containing "IT"
-it_files <- grep_files(temp_files, "IT")
-print(it_files)
-
-# Find files containing "HR" or "Finance"
-hr_finance_files <- grep_files(temp_files, "HR|Finance")
-print(hr_finance_files)
-
-# Get the match counts as an attribute
-attr(hr_finance_files, "counts")
-```
-
-## Viewing Context with `grep_context()`
-
-The `grep_context()` function shows matches along with surrounding context lines:
-
-```{r, eval=has_grep}
-# Create a file with multiple lines
-context_file <- tempfile()
-writeLines(c(
-  "Line 1: Introduction",
-  "Line 2: This line mentions pattern XYZ",
-  "Line 3: Details about the pattern",
-  "Line 4: More information",
-  "Line 5: Another mention of pattern XYZ",
-  "Line 6: Conclusion"
-), context_file)
-
-# Get matches with 1 line before and after
-context_results <- grep_context(context_file, "pattern", before = 1, after = 1)
-cat(context_results, sep = "\n")
-```
-
-For more structured output, use `as_data_table = TRUE`:
-
-```{r, eval=has_grep}
-results_dt <- grep_context(context_file, "pattern", before = 1, after = 1, as_data_table = TRUE)
-print(results_dt)
 ```
 
 ## Working with Multiple Files
 
 All functions support working with multiple files:
 
-```{r, eval=has_grep}
-# Count pattern occurrences across multiple files
-grep_count(c(temp_file, context_file), "pattern")
-
+```{r}
 # Read data from multiple files
 combined_data <- grep_read(c(temp_file, temp_file), "IT")
 print(combined_data)
@@ -184,18 +108,9 @@ All functions in grepreaper share these common parameters:
 
 ```{r}
 # Remove temporary files
-unlink(c(temp_file, temp_files, context_file))
+unlink(temp_file)
 ```
 
 ## Conclusion
 
 The grepreaper package provides powerful tools for reading and filtering data from files based on pattern matching. By leveraging the efficiency of the command-line grep utility, it enables R users to work with large files more effectively.
-
-For more information and advanced usage, please refer to the function documentation:
-
-```r
-?grep_count
-?grep_read
-?grep_files
-?grep_context
-```

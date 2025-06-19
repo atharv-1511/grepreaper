@@ -99,7 +99,7 @@ grep_read <- function(files, pattern = '', invert = FALSE, ignore_case = FALSE,
   if (header && !count_only) {
     tryCatch({
       # Read first row of first file to get column names
-      first_file_cols <- names(fread(files[1], nrows = 1, header = TRUE))
+      first_file_cols <- names(data.table::fread(files[1], nrows = 1, header = TRUE))
       if (is.null(col.names)) {
         col.names <- first_file_cols
       }
@@ -141,17 +141,25 @@ grep_read <- function(files, pattern = '', invert = FALSE, ignore_case = FALSE,
       return(counts)
     } else {
       # Read data directly using fread with cmd parameter
-      dt <- fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
+      dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
       
-      # If we have column names, apply them
+      # Handle empty or malformed results gracefully
+      if (nrow(dt) == 0 || ncol(dt) == 0) {
+        return(dt)
+      }
+      
+      # If we have column names, apply them robustly
       if (!is.null(col.names)) {
-        setnames(dt, names(dt), col.names)
+        n <- min(ncol(dt), length(col.names))
+        if (n > 0) {
+          data.table::setnames(dt, names(dt)[1:n], col.names[1:n])
+        }
       }
       
       # Handle filename column if needed
       if (include_filename && any(grepl(":", dt[[1]], fixed = TRUE))) {
         # Split filename and content
-        split_cols <- tstrsplit(dt[[1]], ":", fixed = TRUE)
+        split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
         if (length(split_cols) == 2) {
           dt[, source_file := split_cols[[1]]]
           dt[, (1) := split_cols[[2]]]
@@ -161,7 +169,7 @@ grep_read <- function(files, pattern = '', invert = FALSE, ignore_case = FALSE,
       # Handle line numbers if requested
       if (show_line_numbers && any(grepl(":", dt[[1]], fixed = TRUE))) {
         # Split line number and content
-        split_cols <- tstrsplit(dt[[1]], ":", fixed = TRUE)
+        split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
         if (length(split_cols) == 2) {
           dt[, line_number := as.integer(split_cols[[1]])]
           dt[, (1) := split_cols[[2]]]

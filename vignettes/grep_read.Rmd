@@ -43,13 +43,15 @@ The package requires the `grep` command-line tool to be available on your system
   - RHEL/CentOS: `sudo yum install grep`
   - Arch Linux: `sudo pacman -S grep`
 
+<!--
 You can check if grep is available on your system using:
 
 ```{r check_grep}
 # Check grep availability
-grep_check <- check_grep_availability()
-print(grep_check)
+# grep_check <- check_grep_availability()
+# print(grep_check)
 ```
+-->
 
 # Basic Usage
 
