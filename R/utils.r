@@ -12,6 +12,7 @@
 #' }
 #' 
 #' @keywords internal
+#' @export
 check_grep_availability <- function() {
   # Get system information
   sys_info <- get_system_info()
