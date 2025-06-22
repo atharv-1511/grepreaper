@@ -1,4 +1,5 @@
 test_that("grep_read handles default pattern correctly", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Create a sample CSV file
   sample_data <- data.frame(
     department = c("IT", "HR", "IT", "Finance", "IT"),
@@ -17,6 +18,7 @@ test_that("grep_read handles default pattern correctly", {
 })
 
 test_that("grep_read preserves column names", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Create a sample CSV file with headers
   sample_data <- data.frame(
     dept = c("IT", "HR", "IT"),
@@ -39,6 +41,7 @@ test_that("grep_read preserves column names", {
 })
 
 test_that("grep_read handles multiple files correctly", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Create two sample files
   file1_data <- data.frame(
     department = c("IT", "HR"),
@@ -67,6 +70,7 @@ test_that("grep_read handles multiple files correctly", {
 })
 
 test_that("grep_read handles line numbers correctly", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Create a sample file
   sample_data <- data.frame(
     department = c("IT", "HR", "IT"),
@@ -84,18 +88,20 @@ test_that("grep_read handles line numbers correctly", {
 })
 
 test_that("grep_read handles errors gracefully", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Test with non-existent file
-  expect_error(grep_read("nonexistent.csv"), "Error reading data")
+  expect_error(grep_read("nonexistent.csv"), "grepreaper failed")
   
   # Test with invalid pattern
   expect_error(grep_read("sample_data.csv", pattern = c("a", "b")), 
                "pattern must be a single character string")
   
   # Test with empty files vector
-  expect_error(grep_read(character(0)), "files must be a non-empty character vector")
+  expect_error(grep_read(character(0)), "'files' must be a non-empty character vector")
 })
 
 test_that("grep_read handles progress indicators", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Create a large sample file
   large_data <- data.frame(
     department = rep(c("IT", "HR", "Finance"), 1000),
@@ -120,6 +126,7 @@ test_that("grep_read handles progress indicators", {
 })
 
 test_that("only_matching returns only the matched part of lines", {
+  skip_if_not(check_grep_availability()$available, "grep not available")
   # Setup
   temp_dir <- tempfile("test_only_matching")
   dir.create(temp_dir)
