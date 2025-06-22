@@ -86,123 +86,110 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   options_str <- paste(options, collapse = " ")
 
   # Build the command
-  cmd <- sprintf("grep%s '%s' %s",
-                 if (nchar(options_str) > 0) paste0(" ", options_str) else "",
-                 gsub("'", "'\\''", pattern),
-                 paste(shQuote(files), collapse = " "))
+  cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str)
 
+  # Initialize the result object that will be returned.
   res <- NULL
-
-  if (show_cmd) {
-    res <- cmd
-  } else if (only_matching) {
-    result <- safe_system_call(cmd)
-    if (length(result) == 0) {
-      res <- data.table::data.table(match = character(0))
-    } else {
-      if (include_filename) {
-        # `grep -oH` prints `filename:match`
-        splits <- data.table::tstrsplit(result, ":", fixed = TRUE, keep = 1:2)
-        res <- data.table::data.table(source_file = splits[[1]], match = splits[[2]])
+  
+  tryCatch({
+    if (show_cmd) {
+      res <- cmd
+    } else if (only_matching) {
+      result <- safe_system_call(cmd)
+      if (length(result) == 0) {
+        res <- data.table::data.table(match = character(0))
       } else {
-        res <- data.table::data.table(match = result)
-      }
-    }
-  } else if (count_only) {
-    result <- safe_system_call(cmd)
-    if (length(result) == 0) {
-      res <- data.table::data.table(file = files, count = 0)
-    } else {
-      count_data <- lapply(result, function(line) {
-        # `grep -c` output is `count` or `filename:count`
-        parts <- strsplit(line, ":", fixed = TRUE)[[1]]
-        if (length(parts) >= 2) {
-          # Handle cases like "path/to/file.txt:123"
-          file_path <- paste(parts[1:(length(parts)-1)], collapse=":")
-          count <- as.integer(parts[length(parts)])
-          return(list(file = file_path, count = count))
+        if (include_filename) {
+          splits <- data.table::tstrsplit(result, ":", fixed = TRUE, keep = 1:2)
+          res <- data.table::data.table(source_file = splits[[1]], match = splits[[2]])
         } else {
-          # Single file, no -H, result is just the count
-          return(list(file = files[1], count = as.integer(line)))
+          res <- data.table::data.table(match = result)
         }
-      })
-      res <- data.table::rbindlist(count_data)
-    }
-  } else {
-    # Default case: use fread for reading full lines
-    # Get column names from first file if header is TRUE
-    if (header) {
-      tryCatch({
-        first_file_cols <- names(data.table::fread(text=safe_system_call(sprintf("head -n 1 %s", shQuote(files[1]))), header = TRUE))
-        if (is.null(col.names)) {
-          col.names <- first_file_cols
-        }
-      }, error = function(e) {
-        warning("Could not read headers from first file: ", e$message)
-      })
-    }
-    if (show_progress) {
-      message("Reading data from ", length(files), " file(s)...")
-    }
-    res <- tryCatch({
+      }
+    } else if (count_only) {
+      result <- safe_system_call(cmd)
+      if (length(result) == 0) {
+        res <- data.table::data.table(file = files, count = 0)
+      } else {
+        count_data <- lapply(result, function(line) {
+          parts <- strsplit(line, ":", fixed = TRUE)[[1]]
+          if (length(parts) >= 2) {
+            file_path <- paste(parts[1:(length(parts)-1)], collapse=":")
+            count <- as.integer(parts[length(parts)])
+            list(file = file_path, count = count)
+          } else {
+            list(file = files[1], count = as.integer(line))
+          }
+        })
+        res <- data.table::rbindlist(count_data)
+      }
+    } else {
+      # Default case: use fread for reading full lines
+      # Get column names from first file if header is TRUE
+      if (header && is.null(col.names)) {
+          first_file_cols <- names(data.table::fread(text=safe_system_call(sprintf("head -n 1 %s", shQuote(files[1]))), header = TRUE))
+          if(length(first_file_cols) > 0) {
+              col.names <- first_file_cols
+          }
+      }
+      
+      if (show_progress) {
+        message("Reading data from ", length(files), " file(s)...")
+      }
+      
       dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
+      
       if (nrow(dt) == 0 || ncol(dt) == 0) {
         if (!is.null(col.names)) {
-            # Return empty table with correct columns
-            return(data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names)))
+          res <- data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names))
+        } else {
+          res <- data.table::data.table()
         }
-        return(data.table::data.table())
-      }
-      
-      # Determine what prepends the data (filename, line_number, both, or neither)
-      has_filename <- include_filename
-      has_line_num <- show_line_numbers
-
-      current_names <- names(dt)
-      original_col_count <- ncol(dt)
-
-      # Robustly handle prepended columns
-      if(has_filename && has_line_num){
-          # format: filename:line_number:data
-          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-          if(length(split_cols) >= 3){
-             dt[, source_file := split_cols[[1]]]
-             dt[, line_number := as.integer(split_cols[[2]])]
-             dt[, (1) := do.call(paste, c(split_cols[-(1:2)], sep=":"))]
-          }
-      } else if (has_filename) {
-          # format: filename:data
-          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-          if (length(split_cols) >= 2) {
-              dt[, source_file := split_cols[[1]]]
-              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
-          }
-      } else if(has_line_num){
-          # format: line_number:data
-          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-          if (length(split_cols) >= 2) {
-              dt[, line_number := as.integer(split_cols[[1]])]
-              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
-          }
-      }
-      
-      # Set column names
-      if (!is.null(col.names)) {
-        # The number of data columns might have changed if the first col was split
-        data_col_count <- ncol(dt) - (if(has_filename) 1 else 0) - (if(has_line_num) 1 else 0)
-        names_to_set <- col.names[1:min(length(col.names), data_col_count)]
+      } else {
+        # Determine what prepends the data (filename, line_number, both, or neither)
+        has_filename <- include_filename
+        has_line_num <- show_line_numbers
         
-        # Identify the actual data columns to rename
-        data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
-        data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
+        # Robustly handle prepended columns
+        if(has_filename && has_line_num){
+            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+            if(length(split_cols) >= 3){
+               dt[, source_file := split_cols[[1]]]
+               dt[, line_number := as.integer(split_cols[[2]])]
+               dt[, (1) := do.call(paste, c(split_cols[-(1:2)], sep=":"))]
+            }
+        } else if (has_filename) {
+            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+            if (length(split_cols) >= 2) {
+                dt[, source_file := split_cols[[1]]]
+                dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
+            }
+        } else if(has_line_num){
+            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+            if (length(split_cols) >= 2) {
+                dt[, line_number := as.integer(split_cols[[1]])]
+                dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
+            }
+        }
+        
+        # Set column names
+        if (!is.null(col.names)) {
+          data_col_count <- ncol(dt) - (if(has_filename) 1 else 0) - (if(has_line_num) 1 else 0)
+          names_to_set <- col.names[1:min(length(col.names), data_col_count)]
+          data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
+          data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
+        }
+        res <- dt
       }
-      dt
-    }, error = function(e) {
-      stop("Error reading data: ", e$message)
-    }, warning = function(w) {
-      warning("Warning while reading data: ", w$message)
-    })
-  }
+    }
+  }, error = function(e) {
+    # Uniform error handling
+    stop("grepreaper failed: ", e$message)
+  }, warning = function(w) {
+    # Uniform warning handling
+    warning("grepreaper produced a warning: ", w$message)
+  })
+  
   return(res)
 }
 

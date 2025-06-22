@@ -42,7 +42,7 @@ library(grepreaper)
 
 For demonstration purposes, we'll create a sample CSV file:
 
-```{r}
+```{r setup_files}
 # Create a temporary CSV file
 temp_file <- tempfile(fileext = ".csv")
 write.csv(data.frame(
@@ -60,7 +60,7 @@ write.csv(data.frame(
 
 The `grep_read()` function filters data based on a pattern and returns a data.table:
 
-```{r}
+```{r filter_data, eval = grepreaper::check_grep_availability()$available}
 # Read rows containing "IT"
 it_employees <- grep_read(temp_file, "IT")
 print(it_employees)
@@ -72,7 +72,7 @@ print(other_employees)
 
 The function accepts many of the same parameters as `data.table::fread()`:
 
-```{r}
+```{r fread_params, eval = grepreaper::check_grep_availability()$available}
 # Specify column names
 grep_read(temp_file, "IT", col.names = c("EmpID", "EmpName", "Dept", "Compensation"))
 ```
@@ -81,7 +81,7 @@ grep_read(temp_file, "IT", col.names = c("EmpID", "EmpName", "Dept", "Compensati
 
 All functions support working with multiple files:
 
-```{r}
+```{r multi_file, eval = grepreaper::check_grep_availability()$available}
 # Read data from multiple files
 combined_data <- grep_read(c(temp_file, temp_file), "IT")
 print(combined_data)
@@ -106,7 +106,7 @@ All functions in grepreaper share these common parameters:
 
 ## Cleaning Up
 
-```{r}
+```{r cleanup}
 # Remove temporary files
 unlink(temp_file)
 ```

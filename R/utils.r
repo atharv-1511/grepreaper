@@ -139,14 +139,15 @@ build_grep_cmd <- function(pattern, files, options = "", count = FALSE) {
   # Add count option if requested
   if (count) options <- paste(options, "-c")
   
-  # Escape pattern for shell
-  escaped_pattern <- gsub("'", "'\\\\''", pattern)
-  
-  # Properly quote file paths
+  # Properly quote pattern and file paths for the shell
+  escaped_pattern <- shQuote(pattern)
   file_paths <- paste(shQuote(files), collapse = " ")
   
   # Build and return command
-  sprintf("grep %s '%s' %s", options, escaped_pattern, file_paths)
+  cmd <- sprintf("grep %s %s %s", options, escaped_pattern, file_paths)
+  # Remove extra space if options is empty
+  cmd <- gsub("grep  ", "grep ", cmd, fixed = TRUE)
+  return(cmd)
 }
 
 #' Execute a shell command safely

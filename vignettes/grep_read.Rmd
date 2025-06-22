@@ -59,7 +59,7 @@ You can check if grep is available on your system using:
 
 You can read all lines from a file by using the default empty pattern:
 
-```{r read_all}
+```{r read_all, eval = grepreaper::check_grep_availability()$available}
 # Create a sample CSV file
 sample_data <- data.frame(
   department = c("IT", "HR", "IT", "Finance", "IT"),
@@ -77,7 +77,7 @@ print(all_data)
 
 The function automatically preserves column names from the source file:
 
-```{r column_names}
+```{r column_names, eval = grepreaper::check_grep_availability()$available}
 # Read with original column names
 it_employees <- grep_read("sample_data.csv", "IT")
 print(it_employees)
@@ -92,7 +92,7 @@ print(it_employees_custom)
 
 When reading from multiple files, you can track the source of each row:
 
-```{r multiple_files}
+```{r multiple_files, eval = grepreaper::check_grep_availability()$available}
 # Create two sample files
 file1_data <- data.frame(
   department = c("IT", "HR"),
@@ -119,7 +119,7 @@ print(all_it_employees)
 
 For large files, you can enable progress indicators:
 
-```{r progress}
+```{r progress, eval = grepreaper::check_grep_availability()$available}
 # Create a large sample file
 large_data <- data.frame(
   department = rep(c("IT", "HR", "Finance"), 1000),
@@ -137,7 +137,7 @@ print(head(it_employees_large))
 
 You can include line numbers in the output:
 
-```{r line_numbers}
+```{r line_numbers, eval = grepreaper::check_grep_availability()$available}
 # Read with line numbers
 it_employees_with_lines <- grep_read("sample_data.csv", "IT", show_line_numbers = TRUE)
 print(it_employees_with_lines)
@@ -147,7 +147,7 @@ print(it_employees_with_lines)
 
 Get a count of matching lines instead of the actual content:
 
-```{r count_matches}
+```{r count_matches, eval = grepreaper::check_grep_availability()$available}
 # Count IT department entries
 it_count <- grep_read("sample_data.csv", "IT", count_only = TRUE)
 print(it_count)
@@ -165,7 +165,7 @@ print(multi_file_counts)
 
 You can use the `path` parameter to read all files in a directory (optionally recursively):
 
-```{r read_path_example}
+```{r read_path_example, eval = grepreaper::check_grep_availability()$available}
 # Create a directory and some sample files
 if (!dir.exists("data")) dir.create("data")
 write.csv(data.frame(department = c("IT", "HR"), employee = c("John", "Alice")), "data/file1.csv", row.names = FALSE)
@@ -182,7 +182,7 @@ print(data_all)
 
 The function supports various pattern matching options:
 
-```{r pattern_matching}
+```{r pattern_matching, eval = grepreaper::check_grep_availability()$available}
 # Case-insensitive matching
 it_employees_any_case <- grep_read("sample_data.csv", "it", ignore_case = TRUE)
 print(it_employees_any_case)
@@ -208,7 +208,7 @@ print(non_it_employees)
 
 The `only_matching` parameter (`-o` in `grep`) is a powerful feature that allows you to extract only the parts of a line that match your pattern, rather than returning the full line. This is especially useful for data extraction tasks.
 
-```{r only_matching_example}
+```{r only_matching_example, eval = grepreaper::check_grep_availability()$available}
 # Create a file with complex strings
 text_data <- data.frame(
   log_entry = c(
@@ -242,7 +242,7 @@ print(ip_addresses)
 
 For large files, you can use various options to control memory usage:
 
-```{r large_files}
+```{r large_files, eval = grepreaper::check_grep_availability()$available}
 # Create a large sample file
 large_data <- data.frame(
   department = rep(c("IT", "HR", "Finance"), 1000),
@@ -251,37 +251,52 @@ large_data <- data.frame(
 )
 write.csv(large_data, "large_data.csv", row.names = FALSE)
 
-# Read with row limits
-top_10_it <- grep_read("large_data.csv", "IT", nrows = 10)
-print(top_10_it)
+# Read only the first 10 matching rows
+it_head <- grep_read("large_data.csv", "IT", nrows = 10)
+print(it_head)
 
-# Skip initial rows
-skip_first_100 <- grep_read("large_data.csv", "IT", skip = 100)
-print(head(skip_first_100))
-
-# Disable progress for better performance
-fast_read <- grep_read("large_data.csv", "IT", show_progress = FALSE)
-print(head(fast_read))
+# Skip the first 5 matching rows
+it_skip <- grep_read("large_data.csv", "IT", skip = 5)
+print(head(it_skip))
 ```
 
-## Recursive Directory Search
+## Showing the `grep` command
 
-You can search through directories recursively:
+Sometimes, you may want to see the exact `grep` command that `grep_read` is using. This can be useful for debugging or learning. You can do this by setting `show_cmd = TRUE`.
 
-```{r recursive_search}
-# Create a directory structure
-dir.create("data", showWarnings = FALSE)
-file.copy("sample_data.csv", "data/sample_data.csv")
-file.copy("file1.csv", "data/file1.csv")
-file.copy("file2.csv", "data/file2.csv")
+```{r show_command, eval = grepreaper::check_grep_availability()$available}
+# Show the command for a simple query
+cmd_str <- grep_read(
+  "sample_data.csv",
+  pattern = "IT",
+  ignore_case = TRUE,
+  show_cmd = TRUE
+)
+print(cmd_str)
 
-# Search recursively
-recursive_results <- grep_read("data", "IT", recursive = TRUE)
-print(recursive_results)
+# Show the command for a more complex query
+cmd_str_complex <- grep_read(
+  files = c("file1.csv", "file2.csv"),
+  pattern = "finance",
+  ignore_case = TRUE,
+  invert = TRUE,
+  show_cmd = TRUE
+)
+print(cmd_str_complex)
+```
 
-# Search recursively with line numbers
-recursive_with_lines <- grep_read("data", "IT", recursive = TRUE, show_line_numbers = TRUE)
-print(recursive_with_lines)
+## Recursive Search
+
+The `recursive` parameter allows you to search for files in subdirectories.
+
+```{r recursive_search, eval = grepreaper::check_grep_availability()$available}
+# Create nested directories and files for recursive search
+if (!dir.exists("data/subdir")) dir.create("data/subdir")
+write.csv(data.frame(department = "IT", employee = "Eve"), "data/subdir/file3.csv", row.names = FALSE)
+
+# Search recursively for "IT"
+recursive_data <- grep_read("data", "IT", recursive = TRUE)
+print(recursive_data)
 ```
 
 ## Error Handling
@@ -312,44 +327,27 @@ tryCatch(
 
 You can combine multiple features for powerful data extraction:
 
-```{r combined_features}
-# Read from multiple files with line numbers and custom column names
-custom_names <- c("dept", "name", "pay")
-multi_file_with_lines <- grep_read(
-  c("file1.csv", "file2.csv"),
-  "IT",
-  include_filename = TRUE,
-  show_line_numbers = TRUE,
-  col.names = custom_names
-)
-print(multi_file_with_lines)
-
-# Count matches with word matching
-word_match_counts <- grep_read(
-  "similar_words.csv",
-  "IT",
-  word_match = TRUE,
-  count_only = TRUE
-)
-print(word_match_counts)
-
-# Recursive search with case-insensitive matching
-recursive_case_insensitive <- grep_read(
-  "data",
-  "it",
-  recursive = TRUE,
+```{r combined_features, eval = grepreaper::check_grep_availability()$available}
+# Find all non-IT employees in all .csv files in the data directory,
+# showing line numbers, ignoring case, and tracking the filename.
+complex_query_results <- grep_read(
+  path = "data",
+  file_pattern = "\\.csv$",
+  pattern = "it",
+  invert = TRUE,
   ignore_case = TRUE,
-  show_line_numbers = TRUE
+  show_line_numbers = TRUE,
+  include_filename = TRUE,
+  recursive = TRUE
 )
-print(recursive_case_insensitive)
+print(complex_query_results)
 ```
 
-# Cleanup
+# Cleaning Up
 
-```{r cleanup, include = FALSE}
-# Remove sample files and directories
-unlink(c("sample_data.csv", "file1.csv", "file2.csv", 
-         "large_data.csv", "similar_words.csv"))
+```{r cleanup, eval = grepreaper::check_grep_availability()$available}
+# Clean up created files and directories
+unlink(c("sample_data.csv", "file1.csv", "file2.csv", "large_data.csv", "similar_words.csv", "text_data.csv"))
 unlink("data", recursive = TRUE)
 ```
 
@@ -366,7 +364,7 @@ unlink("data", recursive = TRUE)
 7. Use `ignore_case = TRUE` instead of case-insensitive patterns for better performance
 8. Use `recursive = TRUE` with caution on large directory structures
 
-```{r performance}
+```{r performance, eval = grepreaper::check_grep_availability()$available}
 # Efficient reading with multiple optimizations
 efficient_read <- grep_read(
   "sample_data.csv",
