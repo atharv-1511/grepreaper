@@ -9,7 +9,7 @@ Description: Provides a suite of functions for efficient file reading and patter
     and handling large files efficiently.
 License: MIT + file LICENSE
 Depends: R (>= 3.5.0)
-Imports: data.table, utils
+Imports: data.table
 Suggests: testthat, knitr, rmarkdown, microbenchmark
 Encoding: UTF-8
 LazyData: true
