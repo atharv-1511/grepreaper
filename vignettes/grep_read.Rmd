@@ -1,6 +1,6 @@
 ---
 title: "Using grep_read: Efficient Data Filtering with grep"
-author: "YAtharv Raskar"
+author: "Atharv Raskar"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -202,6 +202,40 @@ print(fixed_matches)
 # Inverted search (non-matching lines)
 non_it_employees <- grep_read("sample_data.csv", "IT", invert = TRUE)
 print(non_it_employees)
+```
+
+## Extracting Only the Matched Text
+
+The `only_matching` parameter (`-o` in `grep`) is a powerful feature that allows you to extract only the parts of a line that match your pattern, rather than returning the full line. This is especially useful for data extraction tasks.
+
+```{r only_matching_example}
+# Create a file with complex strings
+text_data <- data.frame(
+  log_entry = c(
+    "INFO: User 'alex' logged in from 192.168.1.10",
+    "ERROR: Failed login for user 'beth' from 10.0.0.5",
+    "INFO: User 'carl' accessed resource /api/v1/data",
+    "WARN: Disk space low on /dev/sda1"
+  )
+)
+write.csv(text_data, "text_data.csv", row.names = FALSE)
+
+# Extract all usernames
+usernames <- grep_read("text_data.csv", "user '[a-z]+'", only_matching = TRUE)
+print(usernames)
+
+# The output is a single-column data.table. We can clean it up further in R.
+usernames$match <- gsub("user '|'", "", usernames$match)
+print(usernames)
+
+# You can also include the source filename
+ip_addresses <- grep_read(
+  "text_data.csv", 
+  pattern = "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+", 
+  only_matching = TRUE,
+  include_filename = TRUE
+)
+print(ip_addresses)
 ```
 
 ## Reading Large Files

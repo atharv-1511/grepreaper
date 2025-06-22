@@ -5,7 +5,8 @@
 #' 
 #' @param files Character vector of file paths. If NULL, use the path parameter.
 #' @param path Optional. Character string specifying a directory to search for files. If files is NULL, all files in this path will be used.
-#' @param pattern Pattern to search for. Default is empty string (''), which reads all lines.
+#' @param file_pattern Optional. A pattern to filter filenames when using the `path` argument. Passed to `list.files`.
+#' @param pattern Pattern to search for within files. Default is empty string (''), which reads all lines.
 #' @param invert Logical; if TRUE, return non-matching lines (using grep -v).
 #' @param ignore_case Logical; if TRUE, perform case-insensitive matching.
 #' @param fixed Logical; if TRUE, pattern is a fixed string, not a regular expression.
@@ -13,6 +14,7 @@
 #' @param recursive Logical; if TRUE, search recursively through directories.
 #' @param word_match Logical; if TRUE, match only whole words.
 #' @param show_line_numbers Logical; if TRUE, include line numbers from source files.
+#' @param only_matching Logical; if TRUE, return only the matching part of the lines.
 #' @param count_only Logical; if TRUE, return only the count of matching lines.
 #' @param nrows Integer; maximum number of rows to read, passed to fread.
 #' @param skip Integer; number of rows to skip, passed to fread.
@@ -36,9 +38,9 @@
 #' 
 #' @importFrom data.table fread setnames
 #' @export
-grep_read <- function(files = NULL, path = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
+grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
                       fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
-                      word_match = FALSE, show_line_numbers = FALSE,
+                      word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE,
                       count_only = FALSE, nrows = Inf, skip = 0, 
                       header = TRUE, col.names = NULL, include_filename = NULL,
                       show_progress = TRUE, ...) {
@@ -49,7 +51,7 @@ grep_read <- function(files = NULL, path = NULL, pattern = '', invert = FALSE, i
 
   # If files is NULL and path is provided, use list.files to get files
   if (is.null(files) && !is.null(path)) {
-    files <- list.files(path = path, pattern = NULL, full.names = TRUE, recursive = recursive)
+    files <- list.files(path = path, pattern = file_pattern, full.names = TRUE, recursive = recursive)
   }
 
   # Input validation
@@ -73,11 +75,17 @@ grep_read <- function(files = NULL, path = NULL, pattern = '', invert = FALSE, i
   if (recursive) options <- c(options, "-r")
   if (word_match) options <- c(options, "-w")
   if (show_line_numbers) options <- c(options, "-n")
+  if (only_matching) options <- c(options, "-o")
   if (count_only) options <- c(options, "-c")
-  if (include_filename && !count_only) options <- c(options, "-H")
+  # `-H` prints the filename. It's needed for include_filename, but also for count_only
+  # when multiple files are provided, to distinguish counts.
+  if (include_filename || (count_only && length(files) > 1)) {
+    options <- c(options, "-H")
+  }
+  
   options_str <- paste(options, collapse = " ")
 
-  # Build the command (fix extra space issue)
+  # Build the command
   cmd <- sprintf("grep%s '%s' %s",
                  if (nchar(options_str) > 0) paste0(" ", options_str) else "",
                  gsub("'", "'\\''", pattern),
@@ -85,14 +93,47 @@ grep_read <- function(files = NULL, path = NULL, pattern = '', invert = FALSE, i
 
   res <- NULL
 
-  # Return command if requested
   if (show_cmd) {
     res <- cmd
+  } else if (only_matching) {
+    result <- safe_system_call(cmd)
+    if (length(result) == 0) {
+      res <- data.table::data.table(match = character(0))
+    } else {
+      if (include_filename) {
+        # `grep -oH` prints `filename:match`
+        splits <- data.table::tstrsplit(result, ":", fixed = TRUE, keep = 1:2)
+        res <- data.table::data.table(source_file = splits[[1]], match = splits[[2]])
+      } else {
+        res <- data.table::data.table(match = result)
+      }
+    }
+  } else if (count_only) {
+    result <- safe_system_call(cmd)
+    if (length(result) == 0) {
+      res <- data.table::data.table(file = files, count = 0)
+    } else {
+      count_data <- lapply(result, function(line) {
+        # `grep -c` output is `count` or `filename:count`
+        parts <- strsplit(line, ":", fixed = TRUE)[[1]]
+        if (length(parts) >= 2) {
+          # Handle cases like "path/to/file.txt:123"
+          file_path <- paste(parts[1:(length(parts)-1)], collapse=":")
+          count <- as.integer(parts[length(parts)])
+          return(list(file = file_path, count = count))
+        } else {
+          # Single file, no -H, result is just the count
+          return(list(file = files[1], count = as.integer(line)))
+        }
+      })
+      res <- data.table::rbindlist(count_data)
+    }
   } else {
+    # Default case: use fread for reading full lines
     # Get column names from first file if header is TRUE
-    if (header && !count_only) {
+    if (header) {
       tryCatch({
-        first_file_cols <- names(data.table::fread(files[1], nrows = 1, header = TRUE))
+        first_file_cols <- names(data.table::fread(text=safe_system_call(sprintf("head -n 1 %s", shQuote(files[1]))), header = TRUE))
         if (is.null(col.names)) {
           col.names <- first_file_cols
         }
@@ -100,56 +141,62 @@ grep_read <- function(files = NULL, path = NULL, pattern = '', invert = FALSE, i
         warning("Could not read headers from first file: ", e$message)
       })
     }
-    if (show_progress && !count_only) {
+    if (show_progress) {
       message("Reading data from ", length(files), " file(s)...")
     }
     res <- tryCatch({
-      if (count_only) {
-        result <- safe_system_call(cmd)
-        if (length(result) == 0) {
-          data.table::data.table(file = files, count = 0)
-        } else {
-          count_data <- lapply(result, function(line) {
-            parts <- strsplit(line, ":", fixed = TRUE)[[1]]
-            if (length(parts) == 2) {
-              return(list(file = parts[1], count = as.integer(parts[2])))
-            } else {
-              return(list(file = "unknown", count = as.integer(line)))
-            }
-          })
-          data.table::data.table(
-            file = sapply(count_data, function(x) x$file),
-            count = sapply(count_data, function(x) x$count)
-          )
+      dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
+      if (nrow(dt) == 0 || ncol(dt) == 0) {
+        if (!is.null(col.names)) {
+            # Return empty table with correct columns
+            return(data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names)))
         }
-      } else {
-        dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
-        if (nrow(dt) == 0 || ncol(dt) == 0) {
-          dt
-        } else {
-          if (!is.null(col.names)) {
-            n <- min(ncol(dt), length(col.names))
-            if (n > 0) {
-              data.table::setnames(dt, names(dt)[1:n], col.names[1:n])
-            }
-          }
-          if (include_filename && any(grepl(":", dt[[1]], fixed = TRUE))) {
-            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-            if (length(split_cols) == 2) {
-              dt[, source_file := split_cols[[1]]]
-              dt[, (1) := split_cols[[2]]]
-            }
-          }
-          if (show_line_numbers && any(grepl(":", dt[[1]], fixed = TRUE))) {
-            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-            if (length(split_cols) == 2) {
-              dt[, line_number := as.integer(split_cols[[1]])]
-              dt[, (1) := split_cols[[2]]]
-            }
-          }
-          dt
-        }
+        return(data.table::data.table())
       }
+      
+      # Determine what prepends the data (filename, line_number, both, or neither)
+      has_filename <- include_filename
+      has_line_num <- show_line_numbers
+
+      current_names <- names(dt)
+      original_col_count <- ncol(dt)
+
+      # Robustly handle prepended columns
+      if(has_filename && has_line_num){
+          # format: filename:line_number:data
+          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+          if(length(split_cols) >= 3){
+             dt[, source_file := split_cols[[1]]]
+             dt[, line_number := as.integer(split_cols[[2]])]
+             dt[, (1) := do.call(paste, c(split_cols[-(1:2)], sep=":"))]
+          }
+      } else if (has_filename) {
+          # format: filename:data
+          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+          if (length(split_cols) >= 2) {
+              dt[, source_file := split_cols[[1]]]
+              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
+          }
+      } else if(has_line_num){
+          # format: line_number:data
+          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+          if (length(split_cols) >= 2) {
+              dt[, line_number := as.integer(split_cols[[1]])]
+              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
+          }
+      }
+      
+      # Set column names
+      if (!is.null(col.names)) {
+        # The number of data columns might have changed if the first col was split
+        data_col_count <- ncol(dt) - (if(has_filename) 1 else 0) - (if(has_line_num) 1 else 0)
+        names_to_set <- col.names[1:min(length(col.names), data_col_count)]
+        
+        # Identify the actual data columns to rename
+        data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
+        data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
+      }
+      dt
     }, error = function(e) {
       stop("Error reading data: ", e$message)
     }, warning = function(w) {
@@ -158,3 +205,4 @@ grep_read <- function(files = NULL, path = NULL, pattern = '', invert = FALSE, i
   }
   return(res)
 }
+

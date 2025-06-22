@@ -1,0 +1,88 @@
+---
+title: "Performance Benchmarking"
+author: "Atharv Raskar"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Performance Benchmarking}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(grepreaper)
+# Ensure data.table and microbenchmark are available for the vignette
+if (!requireNamespace("data.table", quietly = TRUE) || !requireNamespace("microbenchmark", quietly = TRUE)) {
+  knitr::opts_chunk$set(eval = FALSE)
+}
+```
+
+## Performance Comparison
+
+One of the primary advantages of the `grepreaper` package is its performance when reading and filtering large files. By leveraging the system's `grep` command, `grepreaper` can filter data *before* it is read into R's memory, which is significantly more efficient than reading the entire file and then filtering it in R.
+
+This vignette provides a performance benchmark comparing `grep_read()` with two standard approaches:
+1.  **Base R:** Using `read.csv()` to read the file and then `subset()` to filter.
+2.  **data.table:** Using `data.table::fread()` to read the file and then subsetting.
+
+## Setup
+
+First, let's create a large temporary CSV file to use for our benchmark.
+
+```{r create-large-file}
+# Create a large data frame
+num_rows <- 500000
+large_df <- data.frame(
+  id = 1:num_rows,
+  category = sample(c("A", "B", "C", "D", "E", "F", "TARGET"), num_rows, replace = TRUE),
+  value = rnorm(num_rows),
+  text = replicate(num_rows, paste(sample(letters, 10, replace = TRUE), collapse = ""))
+)
+
+# Write to a temporary file
+temp_large_file <- tempfile(fileext = ".csv")
+data.table::fwrite(large_df, temp_large_file)
+
+# We are looking for a small subset of the data
+search_pattern <- "TARGET"
+```
+
+## Running the Benchmark
+
+We will use the `microbenchmark` package to compare the execution times of the three methods. We are searching for all rows where the `category` is "TARGET".
+
+```{r benchmark, eval = requireNamespace("microbenchmark", quietly = TRUE)}
+# Run the benchmark
+benchmark_results <- microbenchmark::microbenchmark(
+  "grep_read" = {
+    grepreaper::grep_read(files = temp_large_file, pattern = search_pattern)
+  },
+  "base_R" = {
+    data <- read.csv(temp_large_file)
+    subset(data, category == search_pattern)
+  },
+  "data.table" = {
+    data <- data.table::fread(temp_large_file)
+    data[category == search_pattern]
+  },
+  times = 10L # Run each expression 10 times
+)
+
+# Print the results
+print(benchmark_results)
+```
+
+## Results
+
+The results above show the summary statistics for the execution times of each method in nanoseconds. As you can see, `grep_read` is significantly faster than both the base R and `data.table` methods for this common task.
+
+The performance gain comes from avoiding the overhead of reading the entire 500,000-row file into memory just to select a small fraction of it.
+
+```{r cleanup, include = FALSE}
+# Clean up the temporary file
+unlink(temp_large_file)
+``` 

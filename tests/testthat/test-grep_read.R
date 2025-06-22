@@ -117,4 +117,32 @@ test_that("grep_read handles progress indicators", {
   
   # Cleanup
   unlink("large_data.csv")
+})
+
+test_that("only_matching returns only the matched part of lines", {
+  # Setup
+  temp_dir <- tempfile("test_only_matching")
+  dir.create(temp_dir)
+  file1_path <- file.path(temp_dir, "file1.txt")
+  
+  # Write data with a clear pattern
+  writeLines(c("id,value", "1,apple-fruit", "2,banana-fruit", "3,carrot-vegetable"), file1_path)
+  
+  # Test with only_matching = TRUE
+  result <- grep_read(files = file1_path, pattern = "[a-z]+-fruit", only_matching = TRUE, header = FALSE)
+  
+  # Check expectations
+  expect_true(data.table::is.data.table(result))
+  expect_equal(names(result), "match")
+  expect_equal(nrow(result), 2)
+  expect_equal(result$match, c("apple-fruit", "banana-fruit"))
+  
+  # Test with filename included
+  result_with_fname <- grep_read(files = file1_path, pattern = "fruit", only_matching = TRUE, header = FALSE, include_filename = TRUE)
+  expect_equal(names(result_with_fname), c("source_file", "match"))
+  expect_equal(nrow(result_with_fname), 2)
+  expect_equal(result_with_fname$match, c("fruit", "fruit"))
+  
+  # Cleanup
+  unlink(temp_dir, recursive = TRUE)
 }) 

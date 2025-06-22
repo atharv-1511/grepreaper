@@ -49,55 +49,48 @@ grepreaper/
 │   └── visual_examples.html # Visual examples for screenshots
 ```
 
-## 🚀 Core Functions
+## 🚀 Core Function: `grep_read()`
 
-### `grep_count()`
-Count lines matching a pattern in files.
-
-```r
-# Count occurrences of "IT" in employee data
-grep_count("data/employee_data.csv", "IT")
-#> [1] 15
-
-# Multiple files with case-insensitive matching
-grep_count(c("data/2021.csv", "data/2022.csv"), "revenue", ignore_case = TRUE)
-#>   data/2021.csv   data/2022.csv 
-#>              12               8 
-```
-
-### `grep_read()`
-Read and filter data based on pattern matching.
+The `grepreaper` package has been streamlined to focus on a single, powerful function: `grep_read()`. This function is your all-in-one tool for reading and filtering data from files using `grep`.
 
 ```r
-# Read only rows containing "IT"
-it_employees <- grep_read("data/employee_data.csv", "IT")
+# Read only rows containing "IT" from a single file
+it_employees <- grep_read(files = "data/employee_data.csv", pattern = "IT")
 
-# Multiple files with source tracking
-all_data <- grep_read(c("data/file1.csv", "data/file2.csv"), "pattern")
+# Read from all .csv files in a directory that match a pattern
+finance_data <- grep_read(path = "data/reports", file_pattern = "*.csv", pattern = "Finance")
+
+# Count matching lines instead of reading them
+it_count <- grep_read(files = "data/employee_data.csv", pattern = "IT", count_only = TRUE)
+#>      file                  count
+#> 1:   data/employee_data.csv    15
+
+# Extract only the matching text (e.g., email addresses)
+emails <- grep_read(
+  files = "data/logs.txt", 
+  pattern = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+  only_matching = TRUE
+)
 ```
 
-### `grep_files()`
-Find files containing specific patterns.
+## 🔄 Common Parameters
 
-```r
-# Which files contain budget information?
-budget_files <- grep_files(c("reports/*.csv", "finance/*.xlsx"), 
-                          "Budget 2023", recursive = TRUE)
-print(budget_files)
-print(attr(budget_files, "counts"))  # How many matches in each file
-```
+The `grep_read()` function supports these parameters for flexible filtering and output:
 
-### `grep_context()`
-View context lines around matches.
-
-```r
-# Show lines before and after each match
-context <- grep_context("data/log.txt", "Error", before = 2, after = 2)
-
-# As a structured data.table
-result_dt <- grep_context("data/log.txt", "Error", 
-                         before = 1, after = 1, as_data_table = TRUE)
-```
+| Parameter | Description |
+|-----------|-------------|
+| `files` | A character vector of file paths to read from. |
+| `path` | A directory path. If provided, all files in the directory will be searched. |
+| `file_pattern` | An optional pattern to filter files when using the `path` argument (e.g., `*.csv`). |
+| `pattern` | The `grep` pattern to search for. |
+| `count_only`| If `TRUE`, returns a count of matching lines per file instead of the data itself. |
+| `only_matching`| If `TRUE`, returns only the text that matches the pattern, not the full line. |
+| `invert` | Return non-matching rather than matching lines. |
+| `ignore_case` | Perform case-insensitive matching. |
+| `fixed` | Treat pattern as a fixed string, not a regular expression. |
+| `recursive` | Search directories recursively when using the `path` argument. |
+| `word_match`| Match only whole words. |
+| `show_cmd` | Display the underlying `grep` command being executed. |
 
 ## 📊 Performance Comparison
 
@@ -120,19 +113,6 @@ result_dt <- grep_context("data/log.txt", "Error",
    ```
 
 4. **Visual Markdown**: View `examples/create_visual_examples.md` for markdown-formatted examples suitable for GitHub display.
-
-## 🔄 Common Parameters
-
-All functions support these parameters for flexible pattern matching:
-
-| Parameter | Description |
-|-----------|-------------|
-| `invert` | Return non-matching rather than matching lines |
-| `ignore_case` | Perform case-insensitive matching |
-| `fixed` | Treat pattern as a fixed string, not a regular expression |
-| `recursive` | Search directories recursively |
-| `word_match` | Match only whole words |
-| `show_cmd` | Display the grep command being executed |
 
 ## 📋 Requirements
 
