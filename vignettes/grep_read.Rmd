@@ -343,6 +343,22 @@ complex_query_results <- grep_read(
 print(complex_query_results)
 ```
 
+## Filtering Files by Pattern (file_pattern is optional)
+
+You can use the `file_pattern` argument to filter which files in a directory are read. For example, to only include `.csv` files:
+
+```{r file_pattern_example, eval = grepreaper::check_grep_availability()$available}
+csv_data <- grep_read(path = "data", file_pattern = "*.csv", pattern = "IT")
+print(csv_data)
+```
+
+If `file_pattern` is omitted, all files in the directory will be included:
+
+```{r file_pattern_omitted, eval = grepreaper::check_grep_availability()$available}
+all_files_data <- grep_read(path = "data", pattern = "IT")
+print(all_files_data)
+```
+
 # Cleaning Up
 
 ```{r cleanup, eval = grepreaper::check_grep_availability()$available}

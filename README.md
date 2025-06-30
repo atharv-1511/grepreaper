@@ -59,6 +59,8 @@ it_employees <- grep_read(files = "data/employee_data.csv", pattern = "IT")
 
 # Read from all .csv files in a directory that match a pattern
 finance_data <- grep_read(path = "data/reports", file_pattern = "*.csv", pattern = "Finance")
+# If file_pattern is omitted, all files in the directory will be included:
+all_data <- grep_read(path = "data/reports", pattern = "Finance")
 
 # Count matching lines instead of reading them
 it_count <- grep_read(files = "data/employee_data.csv", pattern = "IT", count_only = TRUE)
@@ -81,7 +83,7 @@ The `grep_read()` function supports these parameters for flexible filtering and 
 |-----------|-------------|
 | `files` | A character vector of file paths to read from. |
 | `path` | A directory path. If provided, all files in the directory will be searched. |
-| `file_pattern` | An optional pattern to filter files when using the `path` argument (e.g., `*.csv`). |
+| `file_pattern` | An optional pattern to filter files when using the `path` argument (e.g., `*.csv`). If omitted, all files in the directory will be included. |
 | `pattern` | The `grep` pattern to search for. |
 | `count_only`| If `TRUE`, returns a count of matching lines per file instead of the data itself. |
 | `only_matching`| If `TRUE`, returns only the text that matches the pattern, not the full line. |
