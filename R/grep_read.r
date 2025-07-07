@@ -43,7 +43,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
                       word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE,
                       count_only = FALSE, nrows = Inf, skip = 0, 
                       header = TRUE, col.names = NULL, include_filename = NULL,
-                      show_progress = TRUE, ...) {
+                      show_progress = FALSE, ...) {
   # Ensure data.table is available
   if (!requireNamespace("data.table", quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed. Please install it via install.packages('data.table').")
@@ -54,12 +54,22 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
     files <- list.files(path = path, pattern = file_pattern, full.names = TRUE, recursive = recursive)
   }
 
+  # Expand ~ in file paths
+  if (!is.null(files)) {
+    files <- path.expand(files)
+  }
+
   # Input validation
   if (!is.character(files) || length(files) == 0) {
     stop("'files' must be a non-empty character vector")
   }
   if (!is.character(pattern) || length(pattern) != 1) {
     stop("'pattern' must be a single character string")
+  }
+  # Check that all files exist
+  missing_files <- files[!file.exists(files)]
+  if (length(missing_files) > 0) {
+    stop(sprintf("The following file(s) do not exist: %s", paste(missing_files, collapse = ", ")))
   }
 
   # Set default for include_filename based on number of files
@@ -100,8 +110,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         res <- data.table::data.table(match = character(0))
       } else {
         if (include_filename) {
-          splits <- data.table::tstrsplit(result, ":", fixed = TRUE, keep = 1:2)
-          res <- data.table::data.table(source_file = splits[[1]], match = splits[[2]])
+          # Robustly split only on the first colon, rest is the match (in case match contains colons)
+          splits <- regexpr(":", result, fixed = TRUE)
+          source_file <- ifelse(splits > 0, substr(result, 1, splits - 1), NA)
+          match_val <- ifelse(splits > 0, substr(result, splits + 1, nchar(result)), result)
+          res <- data.table::data.table(source_file = source_file, match = match_val)
         } else {
           res <- data.table::data.table(match = result)
         }
@@ -124,10 +137,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         res <- data.table::rbindlist(count_data)
       }
     } else {
-      # Default case: use fread for reading full lines
       # Get column names from first file if header is TRUE
       if (header && is.null(col.names)) {
-          first_file_cols <- names(data.table::fread(text=safe_system_call(sprintf("head -n 1 %s", shQuote(files[1]))), header = TRUE))
+          first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
+          first_file_cols <- names(data.table::fread(text=first_file_header, header = TRUE))
           if(length(first_file_cols) > 0) {
               col.names <- first_file_cols
           }
@@ -137,7 +150,26 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         message("Reading data from ", length(files), " file(s)...")
       }
       
-      dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
+      # If header=TRUE, skip the first row (header) in the data
+      fread_skip <- skip
+      if (header) {
+        fread_skip <- skip + 1
+      }
+      
+      dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = fread_skip, ...)
+      
+      # Remove duplicate header rows (for multiple files)
+      if (header && nrow(dt) > 0 && !is.null(col.names)) {
+        header_row <- as.list(col.names)
+        # Find rows that are identical to the header row
+        is_header_row <- apply(dt[, ..col.names], 1, function(x) all(as.character(x) == as.character(header_row)))
+        # Keep the first header row, remove others
+        if (any(is_header_row)) {
+          first_header_idx <- which(is_header_row)[1]
+          is_header_row[first_header_idx] <- FALSE
+          dt <- dt[!is_header_row]
+        }
+      }
       
       if (nrow(dt) == 0 || ncol(dt) == 0) {
         if (!is.null(col.names)) {
@@ -172,9 +204,18 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             }
         }
         
+        # Remove line_number column if show_line_numbers is FALSE
+        if (!show_line_numbers && "line_number" %in% names(dt)) {
+          dt[, line_number := NULL]
+        }
+        # Remove source_file column if include_filename is FALSE
+        if (!include_filename && "source_file" %in% names(dt)) {
+          dt[, source_file := NULL]
+        }
+        
         # Set column names
         if (!is.null(col.names)) {
-          data_col_count <- ncol(dt) - (if(has_filename) 1 else 0) - (if(has_line_num) 1 else 0)
+          data_col_count <- ncol(dt) - (if(include_filename) 1 else 0) - (if(show_line_numbers) 1 else 0)
           names_to_set <- col.names[1:min(length(col.names), data_col_count)]
           data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
           data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)

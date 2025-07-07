@@ -1,0 +1,129 @@
+---
+title: "grepreaper Tests -- 2025-07-01"
+author: "David Shilane"
+date: "2025-07-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Package Basics
+
+```{r }
+library(grepreaper)
+```
+
+
+```{r }
+citation(package = "grepreaper")
+```
+
+
+**Title**:  grepreaper:  Aggregated and Pre-Filtered File Reading with grep in R
+
+**Authors**:  Atharv Raskar and David Shilane
+
+
+## File Reading
+
+
+```{r }
+grep_read(files = "~/Downloads/diamonds.csv")
+```
+
+This produces an error with locating the file.
+
+
+```{r }
+grep_read(files = "~/Downloads/diamonds.csv", show_cmd = T)
+```
+
+This is an issue because the actual path of the Downloads folder is: "/Users/davidshilane/Downloads".  
+
+```{r }
+dat <- grep_read(files = "/Users/davidshilane/Downloads/diamonds.csv")
+```
+
+(Please remove the message about reading from 1 file or set up a binary **message** parameter.)
+
+Changing the working directory (not shown) also leads to a functional read:
+
+```{r }
+dat <- grep_read("diamonds.csv")
+dat
+```
+
+Noted issues:
+
+* Row 1:  This is a duplicate of the header:
+
+```{r }
+dat[1,]
+```
+
+* Data Types:  Because the header is added as a row of data, all of the data types are converted to character:
+
+```{r }
+dat[, lapply(X = .SD, FUN = "class")]
+```
+
+Column 1:  The first column appears to be a row index for reading from the file.  No column name is given, so V1 is the default.  An NA value is placed in the first row with the header.  The **show_line_numbers** parameter is not working:
+
+```{r }
+dat <- grep_read("diamonds.csv", show_line_numbers = F)
+dat
+```
+
+Furthermore, if we aggregated multiple files, the header would show up as additional rows from each file:
+
+```{r }
+dat <- grep_read(files = c("diamonds.csv", "diamonds.csv"), pattern = "carat")
+dat[1:2,]
+```
+
+## Patterns
+
+Basic matching:
+
+```{r }
+grep_read(files = "diamonds.csv", pattern = "3.94")
+```
+
+Inverted Matching: 
+```{r }
+grep_read(files = "diamonds.csv", pattern = "Premium", invert = T)
+```
+
+
+Whole Word Matching:  This does a good job of capturing VS2 diamonds without including VVS2.
+
+```{r }
+grep_read(files = "diamonds.csv", pattern = "VS2", word_match = T, show_cmd = T)
+```
+
+
+Uncased:  This does a good job of capturing variations in capitalization.
+
+```{r }
+grep_read(files = "diamonds.csv", pattern = "ideal", ignore_case = T)
+```
+
+Only Matching:  It is not clear if this is working properly.  As an example, we can start from the full data.  There are rows with the value 3.94 in multiple variables:
+
+```{r }
+dat <- grep_read(files = "diamonds.csv", pattern = "3.94")
+
+dat[, lapply(X = .SD, FUN = function(x){return(sum(x == "3.94"))})]
+```
+
+
+However, when we apply "only_matching", we only see one column:
+
+```{r }
+grep_read(files = "diamonds.csv", pattern = "3.94", only_matching = T)
+```
+
+Furthermore, some of the values listed here clearly do not match the pattern.

@@ -23,7 +23,7 @@ grep_read(
   header = TRUE,
   col.names = NULL,
   include_filename = NULL,
-  show_progress = TRUE,
+  show_progress = FALSE,
   ...
 )
 }
