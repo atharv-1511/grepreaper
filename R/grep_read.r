@@ -1,41 +1,12 @@
-#' Read and filter data from one or more files using grep
+#' grep_read: Efficiently read and filter lines from one or more files using grep, returning a data.table.
 #' 
-#' This function reads data from one or more files after filtering it with grep.
-#' It allows for flexible pattern matching and leverages data.table's fread for efficient data import.
-#' 
-#' @param files Character vector of file paths. If NULL, use the path parameter.
-#' @param path Optional. Character string specifying a directory to search for files. If files is NULL, all files in this path will be used.
+#' @param files Character vector of file paths to read.
+#' @param path Optional. Directory path to search for files.
 #' @param file_pattern Optional. A pattern to filter filenames when using the `path` argument. Passed to `list.files`.
-#' @param pattern Pattern to search for within files. Default is empty string (''), which reads all lines.
-#' @param invert Logical; if TRUE, return non-matching lines (using grep -v).
-#' @param ignore_case Logical; if TRUE, perform case-insensitive matching.
-#' @param fixed Logical; if TRUE, pattern is a fixed string, not a regular expression.
-#' @param show_cmd Logical; if TRUE, print the grep command used.
-#' @param recursive Logical; if TRUE, search recursively through directories.
-#' @param word_match Logical; if TRUE, match only whole words.
-#' @param show_line_numbers Logical; if TRUE, include line numbers from source files.
-#' @param only_matching Logical; if TRUE, return only the matching part of the lines.
-#' @param count_only Logical; if TRUE, return only the count of matching lines.
-#' @param nrows Integer; maximum number of rows to read, passed to fread.
-#' @param skip Integer; number of rows to skip, passed to fread.
-#' @param header Logical; if TRUE, treat first row as header. If FALSE, no header is used.
-#' @param col.names Character vector of column names, passed to fread.
-#' @param include_filename Logical; if TRUE, include source filename as a column (default: TRUE for multiple files).
-#' @param show_progress Logical; if TRUE, show progress indicators for large files.
-#' @param ... Additional arguments passed to fread.
-#' 
-#' @return A data.table containing the matched data (or command string if show_cmd=TRUE).
-#'         If count_only=TRUE, returns a data.table with file names and their match counts.
-#' 
-#' @examples
-#' \dontrun{
-#' # Read all lines from sample_data.csv
-#' all_data <- grep_read(files = "data/sample_data.csv")
-#' 
-#' # Read all .csv files in a directory
-#' all_data <- grep_read(path = "data", pattern = "", recursive = TRUE)
-#' }
-#' 
+#' @param pattern Pattern to search for within files (passed to grep).
+#' @param invert,ignore_case,fixed,recursive,word_match,show_line_numbers,only_matching,count_only Various grep options.
+#' @param nrows,skip,header,col.names,include_filename,show_progress,... Additional options for reading and output.
+#' @return A data.table with the filtered results, or the grep command if show_cmd=TRUE.
 #' @importFrom data.table fread setnames
 #' @export
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
@@ -49,6 +20,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
     stop("The 'data.table' package is required but not installed. Please install it via install.packages('data.table').")
   }
 
+  # --- File selection and validation ---
   # If files is NULL and path is provided, use list.files to get files
   if (is.null(files) && !is.null(path)) {
     files <- list.files(path = path, pattern = file_pattern, full.names = TRUE, recursive = recursive)
@@ -77,7 +49,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
     include_filename <- length(files) > 1 && !recursive
   }
 
-  # Build grep options
+  # --- Build grep command options ---
   options <- character()
   if (invert) options <- c(options, "-v")
   if (ignore_case) options <- c(options, "-i")
@@ -98,13 +70,15 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   # Build the command
   cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str)
 
-  # Initialize the result object that will be returned.
+  # --- Main logic: run grep and process output ---
   res <- NULL
   
   tryCatch({
     if (show_cmd) {
+      # Return the grep command string
       res <- cmd
     } else if (only_matching) {
+      # Only return matching substrings (not full lines)
       result <- safe_system_call(cmd)
       if (length(result) == 0) {
         res <- data.table::data.table(match = character(0))
@@ -120,6 +94,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         }
       }
     } else if (count_only) {
+      # Only return counts of matches per file
       result <- safe_system_call(cmd)
       if (length(result) == 0) {
         res <- data.table::data.table(file = files, count = 0)
@@ -137,40 +112,28 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         res <- data.table::rbindlist(count_data)
       }
     } else {
-      # Get column names from first file if header is TRUE
+      # --- HEADER HANDLING FIX START ---
+      # Always read the header row from the first file if header=TRUE
       if (header && is.null(col.names)) {
-          first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
-          first_file_cols <- names(data.table::fread(text=first_file_header, header = TRUE))
-          if(length(first_file_cols) > 0) {
-              col.names <- first_file_cols
-          }
+        first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
+        header_dt <- data.table::fread(text=first_file_header, header = TRUE)
+        first_file_cols <- colnames(header_dt)
+        if(length(first_file_cols) > 0) {
+          col.names <- first_file_cols
+        }
       }
-      
       if (show_progress) {
         message("Reading data from ", length(files), " file(s)...")
       }
-      
       # If header=TRUE, skip the first row (header) in the data
       fread_skip <- skip
       if (header) {
         fread_skip <- skip + 1
       }
-      
       dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = fread_skip, ...)
-      
-      # Remove duplicate header rows (for multiple files)
-      if (header && nrow(dt) > 0 && !is.null(col.names)) {
-        header_row <- as.list(col.names)
-        # Find rows that are identical to the header row
-        is_header_row <- apply(dt[, ..col.names], 1, function(x) all(as.character(x) == as.character(header_row)))
-        # Keep the first header row, remove others
-        if (any(is_header_row)) {
-          first_header_idx <- which(is_header_row)[1]
-          is_header_row[first_header_idx] <- FALSE
-          dt <- dt[!is_header_row]
-        }
-      }
-      
+      # Remove duplicate header rows (for multiple files) -- REMOVE OLD LOGIC
+      # (old block deleted)
+      # If the grep result is empty, return an empty data.table with correct columns
       if (nrow(dt) == 0 || ncol(dt) == 0) {
         if (!is.null(col.names)) {
           res <- data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names))
@@ -178,10 +141,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           res <- data.table::data.table()
         }
       } else {
+        # --- COLUMN ASSIGNMENT AND PREPEND HANDLING ---
         # Determine what prepends the data (filename, line_number, both, or neither)
         has_filename <- include_filename
         has_line_num <- show_line_numbers
-        
         # Robustly handle prepended columns
         if(has_filename && has_line_num){
             split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
@@ -203,7 +166,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
                 dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
             }
         }
-        
         # Remove line_number column if show_line_numbers is FALSE
         if (!show_line_numbers && "line_number" %in% names(dt)) {
           dt[, line_number := NULL]
@@ -212,16 +174,20 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         if (!include_filename && "source_file" %in% names(dt)) {
           dt[, source_file := NULL]
         }
-        
-        # Set column names
+        # Set column names for data columns only and robustly remove header row if present
         if (!is.null(col.names)) {
           data_col_count <- ncol(dt) - (if(include_filename) 1 else 0) - (if(show_line_numbers) 1 else 0)
           names_to_set <- col.names[1:min(length(col.names), data_col_count)]
           data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
           data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
+          # Remove header row if present as first row
+          if (nrow(dt) > 0 && all(dt[1, ..names_to_set] == names_to_set)) {
+            dt <- dt[-1]
+          }
         }
         res <- dt
       }
+      # --- HEADER HANDLING FIX END ---
     }
   }, error = function(e) {
     # Uniform error handling
