@@ -180,10 +180,33 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           names_to_set <- col.names[1:min(length(col.names), data_col_count)]
           data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
           data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
-          # Remove header row if present as first row
-          if (nrow(dt) > 0 && all(dt[1, ..names_to_set] == names_to_set)) {
-            dt <- dt[-1]
+          # Remove all header rows (not just first) for multiple files
+          header_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(x == names_to_set)))
+          if (length(header_row_idx) > 0) {
+            dt <- dt[-header_row_idx]
           }
+        }
+        # --- Restore correct column types using shallow read of first file ---
+        if (!is.null(col.names) && nrow(dt) > 0) {
+          shallow <- data.table::fread(files[1], nrows = 2, header = TRUE)
+          col_types <- sapply(shallow, class)
+          for (col in names_to_set) {
+            if (col %in% names(dt) && col %in% names(col_types)) {
+              if (col_types[[col]] == "numeric") {
+                dt[[col]] <- suppressWarnings(as.numeric(dt[[col]]))
+              } else if (col_types[[col]] == "integer") {
+                dt[[col]] <- suppressWarnings(as.integer(dt[[col]]))
+              } else if (col_types[[col]] == "logical") {
+                dt[[col]] <- suppressWarnings(as.logical(dt[[col]]))
+              } else {
+                dt[[col]] <- as.character(dt[[col]])
+              }
+            }
+          }
+        }
+        # --- Use 'line' as the column name if show_line_numbers is TRUE ---
+        if (show_line_numbers && "line_number" %in% names(dt)) {
+          data.table::setnames(dt, "line_number", "line")
         }
         res <- dt
       }

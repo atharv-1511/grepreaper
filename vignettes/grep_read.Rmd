@@ -131,6 +131,26 @@ all_it_employees <- grep_read(
 print(all_it_employees)
 ```
 
+## Header Handling and Data Types
+
+> **Note:**
+> When reading from multiple files, `grep_read()` automatically removes all duplicate header rows that may appear in the output (i.e., the header from the second and subsequent files). This ensures that only the first header is used, and no erroneous header rows appear as data.
+>
+> After removing duplicate headers, `grep_read()` restores the correct data types for each column by performing a shallow read of the first file. This means that numeric columns remain numeric, and character columns remain character, even after combining data from multiple files.
+>
+> This robust handling prevents issues where all columns become character due to header row contamination, and ensures your data is ready for analysis immediately.
+
+Example:
+
+```{r multi_header_example, eval = grepreaper::check_grep_availability()$available}
+# Simulate reading the same file twice
+multi_dat <- grep_read(files = rep("sample_data.csv", 2))
+# No duplicate header rows:
+any(multi_dat$department == "department" & multi_dat$employee == "employee") # Should be FALSE
+# Correct column types:
+sapply(multi_dat, class)
+```
+
 ## Progress Indicators
 
 For large files, you can enable progress indicators:
@@ -158,6 +178,9 @@ You can include line numbers in the output:
 it_employees_with_lines <- grep_read("sample_data.csv", "IT", show_line_numbers = TRUE)
 print(it_employees_with_lines)
 ```
+
+> **Note:**
+> The line number column is now named `line` for clarity.
 
 ## Count Only
 
