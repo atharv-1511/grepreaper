@@ -398,17 +398,31 @@ all_files_data <- grep_read(path = "data", pattern = "IT")
 print(all_files_data)
 ```
 
+# Data Types and Robustness
+
+grep_read() now robustly restores all major R data types (integer, numeric, logical, character, factor, Date, POSIXct, complex, list) after reading and combining files. This ensures that your data retains its original types, even after filtering or reading from multiple files.
+
+# Header Row Removal
+
+When reading from multiple files, grep_read() automatically removes all duplicate header rows that may appear in the output (i.e., the header from the second and subsequent files). Only rows that are an exact match to the header are removed, preventing accidental data loss.
+
+# NA Row Handling
+
+Spurious rows where all columns are NA are automatically removed from the output. This prevents bugs where an NA row could appear due to parsing or header issues.
+
+# Line Number Column
+
+The line number column is named 'line' and only appears when show_line_numbers = TRUE. It is not present by default.
+
 # Troubleshooting
 
-If you encounter errors such as:
+- If you see a row of all NAs, ensure your input files are valid CSVs and have proper headers.
+- If you lose data rows, check that your data does not exactly match the header row (rare, but possible).
+- If types are not restored, ensure your files have consistent column types and headers.
 
-    grepreaper failed: columns not found: [carat, cut, color, ...]
+# Important Note on Data Types
 
-- Ensure your data file has a header row (column names) as the first line.
-- Make sure the file is not empty and is a valid CSV.
-- If you edited the file manually, check for extra blank lines or missing headers.
-- If you are using a pattern that matches only data rows, `grep_read()` will still use the header from the file for column names.
-- If you still have issues, try reading the file with `data.table::fread()` directly to check for format problems.
+When using `grep_read()` with shell filtering, **all columns will be returned as character**. Type restoration is best-effort and may not be perfect for all types, especially for complex, Date, and factor columns. For perfect type preservation, use R-native reading and filtering (e.g., `data.table::fread()` or `readr::read_csv()`) and filter in R.
 
 # Cleaning Up
 

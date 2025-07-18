@@ -88,7 +88,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           splits <- regexpr(":", result, fixed = TRUE)
           source_file <- ifelse(splits > 0, substr(result, 1, splits - 1), NA)
           match_val <- ifelse(splits > 0, substr(result, splits + 1, nchar(result)), result)
-          res <- data.table::data.table(source_file = source_file, match = match_val)
+         res <- data.table::data.table(source_file = source_file, match = match_val)
         } else {
           res <- data.table::data.table(match = result)
         }
@@ -113,7 +113,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
       }
     } else {
       # --- HEADER HANDLING FIX START ---
-      # Always read the header row from the first file if header=TRUE
+      # 1. Read the header and a shallow sample from the first file
       if (header && is.null(col.names)) {
         first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
         header_dt <- data.table::fread(text=first_file_header, header = TRUE)
@@ -122,94 +122,91 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           col.names <- first_file_cols
         }
       }
-      if (show_progress) {
-        message("Reading data from ", length(files), " file(s)...")
+      shallow <- tryCatch(data.table::fread(files[1], nrows = 2, header = TRUE), error = function(e) NULL)
+      # 2. If the file has only a header, return an empty data.table with correct types
+      file_lines <- tryCatch(readLines(files[1]), error = function(e) character(0))
+      if (length(file_lines) <= 1) {
+        if (!is.null(shallow)) {
+          res <- shallow[0]
+        } else if (!is.null(col.names)) {
+          res <- data.table::as.data.table(setNames(lapply(col.names, function(x) vector()), col.names))
+        } else {
+          res <- data.table::data.table()
+        }
+        return(res)
       }
-      # If header=TRUE, skip the first row (header) in the data
+      # 3. Read the data via fread and assign column names
       fread_skip <- skip
       if (header) {
         fread_skip <- skip + 1
       }
       dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = fread_skip, ...)
-      # Remove duplicate header rows (for multiple files) -- REMOVE OLD LOGIC
-      # (old block deleted)
-      # If the grep result is empty, return an empty data.table with correct columns
-      if (nrow(dt) == 0 || ncol(dt) == 0) {
-        if (!is.null(col.names)) {
-          res <- data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names))
-        } else {
-          res <- data.table::data.table()
+      has_filename <- include_filename
+      has_line_num <- show_line_numbers
+      if(has_filename && has_line_num){
+          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+          if(length(split_cols) >= 3){
+             dt[, source_file := split_cols[[1]]]
+             dt[, line_number := as.integer(split_cols[[2]])]
+             dt[, (1) := do.call(paste, c(split_cols[-(1:2)], sep=":"))]
+          }
+      } else if (has_filename) {
+          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+          if (length(split_cols) >= 2) {
+              dt[, source_file := split_cols[[1]]]
+              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
+          }
+      } else if(has_line_num){
+          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
+          if (length(split_cols) >= 2) {
+              dt[, line_number := as.integer(split_cols[[1]])]
+              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
+          }
+      }
+      if (!show_line_numbers && "line_number" %in% names(dt)) {
+        dt[, line_number := NULL]
+      }
+      if (!include_filename && "source_file" %in% names(dt)) {
+        dt[, source_file := NULL]
+      }
+      # Set column names for data columns only
+      if (!is.null(col.names)) {
+        data_col_count <- ncol(dt) - (if(include_filename) 1 else 0) - (if(show_line_numbers) 1 else 0)
+        names_to_set <- col.names[1:min(length(col.names), data_col_count)]
+        data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
+        data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
+        # Remove any row where all columns are NA
+        if (nrow(dt) > 0) {
+          na_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(is.na(x))))
+          if (length(na_row_idx) > 0) {
+            dt <- dt[-na_row_idx]
+          }
         }
-      } else {
-        # --- COLUMN ASSIGNMENT AND PREPEND HANDLING ---
-        # Determine what prepends the data (filename, line_number, both, or neither)
-        has_filename <- include_filename
-        has_line_num <- show_line_numbers
-        # Robustly handle prepended columns
-        if(has_filename && has_line_num){
-            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-            if(length(split_cols) >= 3){
-               dt[, source_file := split_cols[[1]]]
-               dt[, line_number := as.integer(split_cols[[2]])]
-               dt[, (1) := do.call(paste, c(split_cols[-(1:2)], sep=":"))]
-            }
-        } else if (has_filename) {
-            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-            if (length(split_cols) >= 2) {
-                dt[, source_file := split_cols[[1]]]
-                dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
-            }
-        } else if(has_line_num){
-            split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-            if (length(split_cols) >= 2) {
-                dt[, line_number := as.integer(split_cols[[1]])]
-                dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
-            }
-        }
-        # Remove line_number column if show_line_numbers is FALSE
-        if (!show_line_numbers && "line_number" %in% names(dt)) {
-          dt[, line_number := NULL]
-        }
-        # Remove source_file column if include_filename is FALSE
-        if (!include_filename && "source_file" %in% names(dt)) {
-          dt[, source_file := NULL]
-        }
-        # Set column names for data columns only and robustly remove header row if present
-        if (!is.null(col.names)) {
-          data_col_count <- ncol(dt) - (if(include_filename) 1 else 0) - (if(show_line_numbers) 1 else 0)
-          names_to_set <- col.names[1:min(length(col.names), data_col_count)]
-          data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
-          data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
-          # Remove all header rows (not just first) for multiple files
-          header_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(x == names_to_set)))
+        # Robust header row removal: remove any row where the character representation of all values (with NA as 'NA') matches the header or the column names
+        if (nrow(dt) > 0) {
+          data_cols <- names_to_set
+          header_as_char <- trimws(as.character(col.names))
+          colnames_as_char <- trimws(as.character(names_to_set))
+          # Helper to convert row to character, replacing NA with 'NA'
+          row_to_char <- function(x) {
+            y <- as.character(x)
+            y[is.na(y)] <- "NA"
+            trimws(y)
+          }
+          header_row_idx <- which(apply(dt[, ..data_cols], 1, function(x) {
+            all(row_to_char(x) == row_to_char(header_as_char)) ||
+            all(row_to_char(x) == row_to_char(colnames_as_char))
+          }))
           if (length(header_row_idx) > 0) {
             dt <- dt[-header_row_idx]
           }
         }
-        # --- Restore correct column types using shallow read of first file ---
-        if (!is.null(col.names) && nrow(dt) > 0) {
-          shallow <- data.table::fread(files[1], nrows = 2, header = TRUE)
-          col_types <- sapply(shallow, class)
-          for (col in names_to_set) {
-            if (col %in% names(dt) && col %in% names(col_types)) {
-              if (col_types[[col]] == "numeric") {
-                dt[[col]] <- suppressWarnings(as.numeric(dt[[col]]))
-              } else if (col_types[[col]] == "integer") {
-                dt[[col]] <- suppressWarnings(as.integer(dt[[col]]))
-              } else if (col_types[[col]] == "logical") {
-                dt[[col]] <- suppressWarnings(as.logical(dt[[col]]))
-              } else {
-                dt[[col]] <- as.character(dt[[col]])
-              }
-            }
-          }
-        }
-        # --- Use 'line' as the column name if show_line_numbers is TRUE ---
-        if (show_line_numbers && "line_number" %in% names(dt)) {
-          data.table::setnames(dt, "line_number", "line")
-        }
-        res <- dt
       }
+      # Use 'line' as the column name if show_line_numbers is TRUE
+      if (show_line_numbers && "line_number" %in% names(dt)) {
+        data.table::setnames(dt, "line_number", "line")
+      }
+      res <- dt
       # --- HEADER HANDLING FIX END ---
     }
   }, error = function(e) {
