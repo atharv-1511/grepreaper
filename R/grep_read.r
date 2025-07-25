@@ -141,64 +141,102 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         fread_skip <- skip + 1
       }
       dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = fread_skip, ...)
+      # --- Robustly split columns as early as possible ---
       has_filename <- include_filename
       has_line_num <- show_line_numbers
-      if(has_filename && has_line_num){
-          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-          if(length(split_cols) >= 3){
-             dt[, source_file := split_cols[[1]]]
-             dt[, line_number := as.integer(split_cols[[2]])]
-             dt[, (1) := do.call(paste, c(split_cols[-(1:2)], sep=":"))]
-          }
-      } else if (has_filename) {
-          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-          if (length(split_cols) >= 2) {
-              dt[, source_file := split_cols[[1]]]
-              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
-          }
-      } else if(has_line_num){
-          split_cols <- data.table::tstrsplit(dt[[1]], ":", fixed = TRUE)
-          if (length(split_cols) >= 2) {
-              dt[, line_number := as.integer(split_cols[[1]])]
-              dt[, (1) := do.call(paste, c(split_cols[-1], sep=":"))]
-          }
+      # Helper: robustly split first column if it contains colons, else treat as data
+      split_first_col <- function(dt, n_data_cols, has_filename, has_line_num) {
+        if (nrow(dt) == 0) return(dt)
+        col1 <- dt[[1]]
+        # Count colons in first row
+        n_colon <- lengths(regmatches(col1[1], gregexpr(":", col1[1], fixed=TRUE)))
+        expected_colon <- (has_filename & has_line_num) * 2 + (has_filename | has_line_num)
+        # If not enough colons, treat as data only
+        if (n_colon < expected_colon) return(dt)
+        # Split
+        split_cols <- data.table::tstrsplit(col1, ":", fixed = TRUE)
+        # If not enough columns, treat as data only
+        if (length(split_cols) < (expected_colon + 1)) return(dt)
+        idx <- 1
+        if (has_filename) {
+          dt[, source_file := split_cols[[idx]]]
+          idx <- idx + 1
+        }
+        if (has_line_num) {
+          dt[, line_number := suppressWarnings(as.integer(split_cols[[idx]]))]
+          idx <- idx + 1
+        }
+        # Remainder is data
+        dt[, (1) := do.call(paste, c(split_cols[idx:length(split_cols)], sep=":"))]
+        return(dt)
       }
+      # Apply robust split
+      n_data_cols <- if (!is.null(col.names)) length(col.names) else 1
+      dt_split <- split_first_col(dt, n_data_cols, has_filename, has_line_num)
+      # Check if splitting produced all NA in data columns; if so, revert to original dt
+      data_cols_indices <- which(!names(dt_split) %in% c("source_file", "line_number"))
+      if (length(data_cols_indices) > 0 && all(sapply(dt_split[, ..data_cols_indices], function(col) all(is.na(col))))) {
+        # Splitting failed, revert to original dt (treat as data only)
+        # Remove any added columns
+        dt_split <- dt[, 1, drop=FALSE]
+        if (has_filename) dt_split[, source_file := NA_character_]
+        if (has_line_num) dt_split[, line_number := NA_integer_]
+      }
+      dt <- dt_split
+      # Remove helper columns if not requested
       if (!show_line_numbers && "line_number" %in% names(dt)) {
         dt[, line_number := NULL]
       }
       if (!include_filename && "source_file" %in% names(dt)) {
         dt[, source_file := NULL]
       }
-      # Set column names for data columns only
+      # --- Set column names for data columns only ---
       if (!is.null(col.names)) {
-        data_col_count <- ncol(dt) - (if(include_filename) 1 else 0) - (if(show_line_numbers) 1 else 0)
-        names_to_set <- col.names[1:min(length(col.names), data_col_count)]
         data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
+        names_to_set <- col.names[1:min(length(col.names), length(data_cols_indices))]
         data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
-        # Remove any row where all columns are NA
+        # --- Header row removal: only for data columns ---
         if (nrow(dt) > 0) {
+          # Remove header rows: rows where all data columns match their names and are not NA
+          header_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(!is.na(x)) && all(x == names_to_set)))
+          if (length(header_row_idx) > 0) dt <- dt[-header_row_idx]
+          # Remove all-NA rows (only if all data columns are NA)
           na_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(is.na(x))))
-          if (length(na_row_idx) > 0) {
-            dt <- dt[-na_row_idx]
-          }
+          if (length(na_row_idx) > 0) dt <- dt[-na_row_idx]
         }
-        # Robust header row removal: remove any row where the character representation of all values (with NA as 'NA') matches the header or the column names
-        if (nrow(dt) > 0) {
-          data_cols <- names_to_set
-          header_as_char <- trimws(as.character(col.names))
-          colnames_as_char <- trimws(as.character(names_to_set))
-          # Helper to convert row to character, replacing NA with 'NA'
-          row_to_char <- function(x) {
-            y <- as.character(x)
-            y[is.na(y)] <- "NA"
-            trimws(y)
-          }
-          header_row_idx <- which(apply(dt[, ..data_cols], 1, function(x) {
-            all(row_to_char(x) == row_to_char(header_as_char)) ||
-            all(row_to_char(x) == row_to_char(colnames_as_char))
-          }))
-          if (length(header_row_idx) > 0) {
-            dt <- dt[-header_row_idx]
+        # --- Type restoration: only after header/NA row removal, and only if data is not all NA or header ---
+        if (nrow(dt) > 0 && !is.null(shallow)) {
+          col_types <- sapply(shallow, class)
+          for (col in names_to_set) {
+            if (col %in% names(dt) && col %in% names(col_types)) {
+              col_class <- col_types[[col]][1]
+              # Only restore type if not all NA and not header name
+              if (!all(is.na(dt[[col]])) && !all(dt[[col]] == col)) {
+                if (col_class == "numeric") {
+                  dt[[col]] <- suppressWarnings(as.numeric(dt[[col]]))
+                } else if (col_class == "integer") {
+                  dt[[col]] <- suppressWarnings(as.integer(dt[[col]]))
+                } else if (col_class == "logical") {
+                  dt[[col]] <- suppressWarnings(as.logical(dt[[col]]))
+                } else if (col_class == "factor") {
+                  dt[[col]] <- suppressWarnings(factor(dt[[col]], levels = levels(shallow[[col]])))
+                  if (!is.factor(dt[[col]])) class(dt[[col]]) <- "factor"
+                } else if (col_class == "Date") {
+                  dt[[col]] <- suppressWarnings(as.Date(dt[[col]], format = "%Y-%m-%d"))
+                  if (!inherits(dt[[col]], "Date")) class(dt[[col]]) <- "Date"
+                } else if (col_class == "POSIXct") {
+                  dt[[col]] <- suppressWarnings(as.POSIXct(dt[[col]], format = "%Y-%m-%d %H:%M:%S"))
+                  if (!inherits(dt[[col]], "POSIXct")) class(dt[[col]]) <- class(shallow[[col]])
+                } else if (col_class == "complex") {
+                  dt[[col]] <- suppressWarnings(as.complex(dt[[col]]))
+                  if (typeof(dt[[col]]) != "complex") storage.mode(dt[[col]]) <- "complex"
+                } else if (col_class == "list") {
+                  dt[[col]] <- suppressWarnings(as.list(dt[[col]]))
+                } else {
+                  dt[[col]] <- as.character(dt[[col]])
+                }
+              }
+            }
           }
         }
       }
