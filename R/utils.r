@@ -139,8 +139,16 @@ build_grep_cmd <- function(pattern, files, options = "", count = FALSE) {
   # Add count option if requested
   if (count) options <- paste(options, "-c")
   
-  # Properly quote pattern and file paths for the shell
-  escaped_pattern <- shQuote(pattern)
+  # Handle pattern escaping based on whether -F (fixed) is in options
+  if (grepl("-F", options, fixed = TRUE)) {
+    # For fixed string matching, escape special regex characters
+    escaped_pattern <- shQuote(pattern)
+  } else {
+    # For regex matching, escape the pattern properly for shell
+    # but don't escape regex metacharacters
+    escaped_pattern <- shQuote(pattern)
+  }
+  
   file_paths <- paste(shQuote(files), collapse = " ")
   
   # Build and return command

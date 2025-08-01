@@ -9,6 +9,8 @@
 #' @return A data.table with the filtered results, or the grep command if show_cmd=TRUE.
 #' @importFrom data.table fread setnames
 #' @export
+#' @note When searching for literal strings (not regex patterns), set `fixed = TRUE` to avoid regex interpretation. 
+#' For example, searching for "3.94" with `fixed = FALSE` will match "3894" because "." is a regex metacharacter.
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
                       fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                       word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE,
@@ -30,7 +32,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   if (!is.null(files)) {
     files <- path.expand(files)
   }
-
+  
   # Input validation
   if (!is.character(files) || length(files) == 0) {
     stop("'files' must be a non-empty character vector")
@@ -43,12 +45,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   if (length(missing_files) > 0) {
     stop(sprintf("The following file(s) do not exist: %s", paste(missing_files, collapse = ", ")))
   }
-
+  
   # Set default for include_filename based on number of files
   if (is.null(include_filename)) {
     include_filename <- length(files) > 1 && !recursive
   }
-
+  
   # --- Build grep command options ---
   options <- character()
   if (invert) options <- c(options, "-v")
@@ -66,7 +68,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   }
   
   options_str <- paste(options, collapse = " ")
-
+  
   # Build the command
   cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str)
 
@@ -74,7 +76,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   res <- NULL
   
   tryCatch({
-    if (show_cmd) {
+  if (show_cmd) {
       # Return the grep command string
       res <- cmd
     } else if (only_matching) {
@@ -84,11 +86,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         res <- data.table::data.table(match = character(0))
       } else {
         if (include_filename) {
-          # Robustly split only on the first colon, rest is the match (in case match contains colons)
+          # For only_matching with filename, split on first colon
           splits <- regexpr(":", result, fixed = TRUE)
           source_file <- ifelse(splits > 0, substr(result, 1, splits - 1), NA)
           match_val <- ifelse(splits > 0, substr(result, splits + 1, nchar(result)), result)
-         res <- data.table::data.table(source_file = source_file, match = match_val)
+          res <- data.table::data.table(source_file = source_file, match = match_val)
         } else {
           res <- data.table::data.table(match = result)
         }
@@ -123,7 +125,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         }
       }
       shallow <- tryCatch(data.table::fread(files[1], nrows = 2, header = TRUE), error = function(e) NULL)
-      # 2. If the file has only a header, return an empty data.table with correct types
+      
+      # 2. Check if the file has only a header (no data)
       file_lines <- tryCatch(readLines(files[1]), error = function(e) character(0))
       if (length(file_lines) <= 1) {
         if (!is.null(shallow)) {
@@ -135,76 +138,160 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         }
         return(res)
       }
-      # 3. Read the data via fread and assign column names
-      fread_skip <- skip
-      if (header) {
-        fread_skip <- skip + 1
+      
+      # 3. Check if grep command returns any results
+      raw_output <- safe_system_call(cmd)
+      if (length(raw_output) == 0) {
+        # No matches found, return empty data.table
+        if (!is.null(col.names)) {
+          res <- data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names))
+        } else {
+          res <- data.table::data.table()
+        }
+        return(res)
       }
-      dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = fread_skip, ...)
-      # --- Robustly split columns as early as possible ---
+      
+      # 4. Read the data via fread (no skip needed since we're using cmd)
+      dt <- data.table::fread(cmd = cmd, header = FALSE, nrows = nrows, skip = skip, ...)
+      
+      # --- SIMPLIFIED COLUMN SPLITTING ---
       has_filename <- include_filename
       has_line_num <- show_line_numbers
-      # Helper: robustly split first column if it contains colons, else treat as data
-      split_first_col <- function(dt, n_data_cols, has_filename, has_line_num) {
-        if (nrow(dt) == 0) return(dt)
-        col1 <- dt[[1]]
-        # Count colons in first row
-        n_colon <- lengths(regmatches(col1[1], gregexpr(":", col1[1], fixed=TRUE)))
-        expected_colon <- (has_filename & has_line_num) * 2 + (has_filename | has_line_num)
-        # If not enough colons, treat as data only
-        if (n_colon < expected_colon) return(dt)
-        # Split
-        split_cols <- data.table::tstrsplit(col1, ":", fixed = TRUE)
-        # If not enough columns, treat as data only
-        if (length(split_cols) < (expected_colon + 1)) return(dt)
-        idx <- 1
-        if (has_filename) {
-          dt[, source_file := split_cols[[idx]]]
-          idx <- idx + 1
+      
+      if (nrow(dt) > 0 && (has_filename || has_line_num)) {
+        # DEBUG: Print the original data.table before splitting
+        if (show_progress) {
+          message("Original data.table before splitting:")
+          print(head(dt, 3))
+          message("Original column names:")
+          print(names(dt))
         }
-        if (has_line_num) {
-          dt[, line_number := suppressWarnings(as.integer(split_cols[[idx]]))]
-          idx <- idx + 1
+        
+        # Get the first column which contains filename:line:data or line:data
+        first_col <- dt[[1]]
+        
+        # DEBUG: Print the raw data structure
+        if (show_progress) {
+          message("Raw first column structure:")
+          print(head(first_col, 3))
         }
-        # Remainder is data
-        dt[, (1) := do.call(paste, c(split_cols[idx:length(split_cols)], sep=":"))]
-        return(dt)
+        
+        # Split the first column on colons
+        split_parts <- data.table::tstrsplit(first_col, ":", fixed = TRUE)
+        
+        # Determine how many parts we have
+        n_parts <- length(split_parts)
+        
+        if (show_progress) {
+          message("Number of split parts: ", n_parts)
+          message("Split parts structure:")
+          print(lapply(split_parts, head, 3))
+        }
+        
+        if (n_parts >= 2) {
+          # Create a new data.table to properly reconstruct the data
+          new_dt <- data.table::data.table()
+          
+          # Add filename if requested
+          if (has_filename && n_parts >= 3) {
+            new_dt[, source_file := split_parts[[1]]]
+            # Remove filename from split parts
+            split_parts <- split_parts[-1]
+            n_parts <- n_parts - 1
+          }
+          
+          # Add line number if requested
+          if (has_line_num && n_parts >= 1) {
+            new_dt[, line_number := suppressWarnings(as.integer(split_parts[[1]]))]
+            # Remove line number from split parts
+            split_parts <- split_parts[-1]
+            n_parts <- n_parts - 1
+          }
+          
+          # Now add the data columns from the original data.table
+          # The original data.table has the correct structure after fread
+          # We just need to copy the data columns (V2, V3, etc.)
+          original_cols <- names(dt)
+          data_cols <- original_cols[-1]  # All columns except the first
+          
+          if (show_progress) {
+            message("Original data columns: ", paste(data_cols, collapse = ", "))
+            message("Data columns content:")
+            for (col in data_cols) {
+              message("  ", col, ": ", paste(head(dt[[col]], 3), collapse = ", "))
+            }
+          }
+          
+          # Copy the data columns to the new data.table
+          for (col in data_cols) {
+            new_dt[, (col) := dt[[col]]]
+          }
+          
+          # Replace the original data.table with the new one
+          dt <- new_dt
+          
+          # DEBUG: Print the data.table after splitting
+          if (show_progress) {
+            message("Data.table after splitting:")
+            print(head(dt, 3))
+            message("Column names after splitting: ", paste(names(dt), collapse = ", "))
+          }
+        }
       }
-      # Apply robust split
-      n_data_cols <- if (!is.null(col.names)) length(col.names) else 1
-      dt_split <- split_first_col(dt, n_data_cols, has_filename, has_line_num)
-      # Check if splitting produced all NA in data columns; if so, revert to original dt
-      data_cols_indices <- which(!names(dt_split) %in% c("source_file", "line_number"))
-      if (length(data_cols_indices) > 0 && all(sapply(dt_split[, ..data_cols_indices], function(col) all(is.na(col))))) {
-        # Splitting failed, revert to original dt (treat as data only)
-        # Remove any added columns
-        dt_split <- dt[, 1, drop=FALSE]
-        if (has_filename) dt_split[, source_file := NA_character_]
-        if (has_line_num) dt_split[, line_number := NA_integer_]
-      }
-      dt <- dt_split
-      # Remove helper columns if not requested
-      if (!show_line_numbers && "line_number" %in% names(dt)) {
-        dt[, line_number := NULL]
-      }
-      if (!include_filename && "source_file" %in% names(dt)) {
-        dt[, source_file := NULL]
-      }
+      
       # --- Set column names for data columns only ---
+      print("DEBUG: About to check col.names")
+      print(paste("col.names is NULL:", is.null(col.names)))
       if (!is.null(col.names)) {
+        print(paste("col.names:", paste(col.names, collapse = ", ")))
         data_cols_indices <- which(!names(dt) %in% c("source_file", "line_number"))
         names_to_set <- col.names[1:min(length(col.names), length(data_cols_indices))]
-        data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
-        # --- Header row removal: only for data columns ---
-        if (nrow(dt) > 0) {
-          # Remove header rows: rows where all data columns match their names and are not NA
-          header_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(!is.na(x)) && all(x == names_to_set)))
-          if (length(header_row_idx) > 0) dt <- dt[-header_row_idx]
-          # Remove all-NA rows (only if all data columns are NA)
-          na_row_idx <- which(apply(dt[, ..names_to_set], 1, function(x) all(is.na(x))))
-          if (length(na_row_idx) > 0) dt <- dt[-na_row_idx]
+        
+        # DEBUG: Print column mapping
+        if (show_progress) {
+          message("Column mapping:")
+          message("  Data column indices: ", paste(data_cols_indices, collapse = ", "))
+          message("  Names to set: ", paste(names_to_set, collapse = ", "))
+          message("  Current names: ", paste(names(dt), collapse = ", "))
         }
-        # --- Type restoration: only after header/NA row removal, and only if data is not all NA or header ---
+        
+        # Simple debug print
+        print("Before column name assignment:")
+        print(paste("col.names:", paste(col.names, collapse = ", ")))
+        print(paste("data_cols_indices:", paste(data_cols_indices, collapse = ", ")))
+        print(paste("names_to_set:", paste(names_to_set, collapse = ", ")))
+        print(paste("Current names:", paste(names(dt), collapse = ", ")))
+        
+        data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
+        
+        print("After column name assignment:")
+        print(paste("Final names:", paste(names(dt), collapse = ", ")))
+        
+        # --- Header row removal using mentor's data.table approach ---
+        if (nrow(dt) > 0) {
+          # Remove header rows using data.table filters
+          the_variables <- names_to_set
+          header_identification <- paste(sprintf("%s == '%s'", the_variables, the_variables), collapse = " & ")
+          header_row_idx <- dt[, which(eval(parse(text = header_identification)))]
+          if (length(header_row_idx) > 0) {
+            dt <- dt[-header_row_idx]
+          }
+          
+          # Remove all-NA rows using data.table approach
+          na_row_idx <- dt[, which(rowMeans(is.na(.SD)) < 1)]
+          if (length(na_row_idx) > 0) {
+            dt <- dt[na_row_idx]
+          }
+          
+          # Convert empty strings to NA for better handling
+          for (col in names_to_set) {
+            if (col %in% names(dt)) {
+              dt[dt[[col]] == "", (col) := NA_character_]
+            }
+          }
+        }
+        
+        # --- Type restoration: only after header/NA row removal ---
         if (nrow(dt) > 0 && !is.null(shallow)) {
           col_types <- sapply(shallow, class)
           for (col in names_to_set) {
@@ -220,19 +307,23 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
                   dt[[col]] <- suppressWarnings(as.logical(dt[[col]]))
                 } else if (col_class == "factor") {
                   dt[[col]] <- suppressWarnings(factor(dt[[col]], levels = levels(shallow[[col]])))
-                  if (!is.factor(dt[[col]])) class(dt[[col]]) <- "factor"
                 } else if (col_class == "Date") {
-                  dt[[col]] <- suppressWarnings(as.Date(dt[[col]], format = "%Y-%m-%d"))
-                  if (!inherits(dt[[col]], "Date")) class(dt[[col]]) <- "Date"
+                  # More robust date parsing
+                  dt[[col]] <- suppressWarnings(tryCatch(
+                    as.Date(dt[[col]]), 
+                    error = function(e) as.character(dt[[col]])
+                  ))
                 } else if (col_class == "POSIXct") {
-                  dt[[col]] <- suppressWarnings(as.POSIXct(dt[[col]], format = "%Y-%m-%d %H:%M:%S"))
-                  if (!inherits(dt[[col]], "POSIXct")) class(dt[[col]]) <- class(shallow[[col]])
+                  # More robust datetime parsing
+                  dt[[col]] <- suppressWarnings(tryCatch(
+                    as.POSIXct(dt[[col]]), 
+                    error = function(e) as.character(dt[[col]])
+                  ))
                 } else if (col_class == "complex") {
                   dt[[col]] <- suppressWarnings(as.complex(dt[[col]]))
-                  if (typeof(dt[[col]]) != "complex") storage.mode(dt[[col]]) <- "complex"
                 } else if (col_class == "list") {
                   dt[[col]] <- suppressWarnings(as.list(dt[[col]]))
-                } else {
+  } else {
                   dt[[col]] <- as.character(dt[[col]])
                 }
               }
@@ -240,6 +331,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           }
         }
       }
+      
       # Use 'line' as the column name if show_line_numbers is TRUE
       if (show_line_numbers && "line_number" %in% names(dt)) {
         data.table::setnames(dt, "line_number", "line")
