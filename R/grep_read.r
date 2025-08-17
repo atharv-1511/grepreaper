@@ -368,7 +368,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
                 col_class <- col_types[[col]][1]
                 # Only restore type if not all NA and not header name
                 if (col_class == "numeric" || col_class == "integer") {
-                  dt[[col]] <- suppressWarnings(as.numeric(dt[[col]]))
+                  # Handle factor conversion properly
+                  if (is.factor(dt[[col]])) {
+                    dt[[col]] <- suppressWarnings(as.numeric(as.character(dt[[col]])))
+                  } else {
+                    dt[[col]] <- suppressWarnings(as.numeric(dt[[col]]))
+                  }
                 } else if (col_class == "logical") {
                   dt[[col]] <- suppressWarnings(as.logical(dt[[col]]))
                 } else if (col_class == "Date") {

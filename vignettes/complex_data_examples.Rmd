@@ -1,0 +1,87 @@
+---
+title: "Complex Data Handling in grepreaper"
+author: "Atharv Raskar and David Shilane"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Complex Data Handling in grepreaper}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(grepreaper)
+```
+
+## Complex Data Examples
+
+### 1. Numeric Type Conversion
+
+Here's an example showing how we handle numeric data conversion, particularly with factors:
+
+```{r}
+# Create a temporary file with mixed numeric data
+cat("a,b\n1,x\n2,y\n3,x\n", file = "temp_numeric.csv")
+
+# Read with grep_read
+result <- grep_read("temp_numeric.csv", pattern = ".", fixed = TRUE)
+str(result)
+
+# Clean up
+unlink("temp_numeric.csv")
+```
+
+### 2. Line Number Handling
+
+Example showing how line numbers are reset per file:
+
+```{r}
+# Create two test files
+cat("header1,header2\nA1,B1\nA2,B2\n", file = "file1.csv")
+cat("header1,header2\nC1,D1\nC2,D2\n", file = "file2.csv")
+
+# Read with line numbers
+result <- grep_read(c("file1.csv", "file2.csv"), 
+                   pattern = ".", 
+                   fixed = TRUE,
+                   show_line_numbers = TRUE,
+                   include_filename = TRUE)
+print(result)
+
+# Clean up
+unlink(c("file1.csv", "file2.csv"))
+```
+
+### 3. Complex Data with Colons
+
+Example showing how we handle data containing colons:
+
+```{r}
+# Create test file with complex data
+complex_data <- c(
+  "text,value",
+  "contains:colon,1",
+  "no colon here,2",
+  "another:split,3"
+)
+cat(paste(complex_data, collapse = "\n"), file = "complex.csv")
+
+# Read with grep_read
+result <- grep_read("complex.csv", 
+                   pattern = ".", 
+                   fixed = TRUE,
+                   show_line_numbers = TRUE)
+print(result)
+
+# Clean up
+unlink("complex.csv")
+```
+
+## Key Points
+
+1. **Numeric Conversion**: We now properly handle factor to numeric conversion by first converting to character, then to numeric. This preserves the actual values instead of using factor levels.
+
+2. **Line Numbers**: Line numbers are reset for each file, making it easy to identify the original position of each line within its source file. Header rows are not counted in the line numbering.
+
+3. **Complex Data**: When data contains colons, we carefully parse the metadata (file names, line numbers) before handling the actual data content. This ensures we don't accidentally split the data content at colons.
