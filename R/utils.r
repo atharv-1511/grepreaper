@@ -1,3 +1,8 @@
+# String concatenation operator
+`%+%` <- function(x, y) {
+  paste0(x, y)
+}
+
 #' Check if grep is available in the system
 #' 
 #' This function checks if the grep command is available in the system.
@@ -25,23 +30,91 @@ check_grep_availability <- function() {
     error = NULL
   )
   
-  # Check for grep using which/where
+  # Check for grep using various methods
   grep_path <- tryCatch({
     if (sys_info$is_windows) {
       # Try multiple methods on Windows
-      paths <- c(
-        system("where grep", intern = TRUE, ignore.stderr = TRUE),
-        system("where.exe grep", intern = TRUE, ignore.stderr = TRUE),
-        system("git --exec-path", intern = TRUE, ignore.stderr = TRUE)
+      paths <- character(0)
+      
+      # Try Git Bash locations
+      git_paths <- c(
+        # Standard Git for Windows paths
+        "C:/Program Files/Git/usr/bin/grep.exe",
+        "C:/Program Files (x86)/Git/usr/bin/grep.exe",
+        Sys.getenv("PROGRAMFILES") %+% "/Git/usr/bin/grep.exe",
+        Sys.getenv("PROGRAMFILES(X86)") %+% "/Git/usr/bin/grep.exe",
+        # MSYS2 paths
+        "C:/msys64/usr/bin/grep.exe",
+        # User-specific Git paths
+        file.path(Sys.getenv("USERPROFILE"), "AppData/Local/Programs/Git/usr/bin/grep.exe"),
+        # Scoop paths
+        file.path(Sys.getenv("USERPROFILE"), "scoop/apps/git/current/usr/bin/grep.exe")
       )
-      # Filter out empty results and take the first valid path
-      paths <- paths[paths != ""]
+      
+      # Check each Git path
+      for (path in git_paths) {
+        if (file.exists(path)) {
+          paths <- c(paths, path)
+          break  # Stop after finding first valid path
+        }
+      }
+      
+      # If no direct paths work, try Git Bash
+      if (length(paths) == 0) {
+        # Try to find Git Bash
+        git_bash_paths <- c(
+          "C:/Program Files/Git/bin/bash.exe",
+          "C:/Program Files (x86)/Git/bin/bash.exe",
+          Sys.getenv("PROGRAMFILES") %+% "/Git/bin/bash.exe",
+          Sys.getenv("PROGRAMFILES(X86)") %+% "/Git/bin/bash.exe"
+        )
+        
+        for (bash_path in git_bash_paths) {
+          if (file.exists(bash_path)) {
+            # Try to run grep through Git Bash
+            grep_cmd <- sprintf('"%s" -c "which grep"', bash_path)
+            tryCatch({
+              bash_result <- system(grep_cmd, intern = TRUE, ignore.stderr = TRUE)
+              if (length(bash_result) > 0 && nchar(bash_result[1]) > 0) {
+                paths <- c(paths, bash_result[1])
+                break
+              }
+            }, error = function(e) NULL)
+          }
+        }
+      }
+      
+      # If still no paths, try system commands
+      if (length(paths) == 0) {
+        # Try where command
+        tryCatch({
+          where_result <- system("where grep 2>NUL", intern = TRUE, ignore.stderr = TRUE)
+          if (length(where_result) > 0) {
+            paths <- c(paths, where_result[1])
+          }
+        }, error = function(e) NULL)
+        
+        # Try git exec-path
+        if (length(paths) == 0) {
+          tryCatch({
+            git_exec <- system("git --exec-path", intern = TRUE, ignore.stderr = TRUE)
+            if (length(git_exec) > 0) {
+              grep_exe <- file.path(git_exec[1], "grep.exe")
+              if (file.exists(grep_exe)) {
+                paths <- c(paths, grep_exe)
+              }
+            }
+          }, error = function(e) NULL)
+        }
+      }
+      
+      # Return first valid path
       if (length(paths) > 0) paths[1] else NULL
     } else {
       # On Unix-like systems, try which and type
       paths <- c(
-        system("which grep", intern = TRUE, ignore.stderr = TRUE),
-        system("type -p grep", intern = TRUE, ignore.stderr = TRUE)
+        tryCatch(system("which grep", intern = TRUE, ignore.stderr = TRUE), error = function(e) character(0)),
+        tryCatch(system("type -p grep", intern = TRUE, ignore.stderr = TRUE), error = function(e) character(0))
       )
       # Filter out empty results and take the first valid path
       paths <- paths[paths != ""]
@@ -53,26 +126,27 @@ check_grep_availability <- function() {
     result$path <- grep_path
   }
   
-  # Try to get grep version with different commands
-  version_cmds <- if (sys_info$is_windows) {
-    c("grep --version", "grep -V")
-  } else {
-    c("grep --version 2>&1", "grep -V 2>&1")
-  }
-  
-  for (cmd in version_cmds) {
-    tryCatch({
-      version_output <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
-      if (length(version_output) > 0) {
-        result$version <- version_output[1]
-        result$available <- TRUE
-        break
-      }
-    }, error = function(e) {
-      # Continue to next command if this one fails
-    }, warning = function(w) {
-      # Continue to next command if this one fails
-    })
+  # Try to get grep version using the found path
+  if (!is.null(grep_path)) {
+    version_cmds <- c(
+      sprintf('"%s" --version', grep_path),
+      sprintf('"%s" -V', grep_path)
+    )
+    
+    for (cmd in version_cmds) {
+      tryCatch({
+        version_output <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
+        if (length(version_output) > 0) {
+          result$version <- version_output[1]
+          result$available <- TRUE
+          break
+        }
+      }, error = function(e) {
+        # Continue to next command if this one fails
+      }, warning = function(w) {
+        # Continue to next command if this one fails
+      })
+    }
   }
   
   # If grep is not available, provide platform-specific guidance

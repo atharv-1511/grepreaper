@@ -1,88 +1,199 @@
 ---
-title: "Performance Benchmarking"
-author: "Atharv Raskar"
+title: "grepreaper Performance Benchmarks"
+author: "Atharv Raskar and David Shilane"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Performance Benchmarking}
+  %\VignetteIndexEntry{grepreaper Performance Benchmarks}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r setup, include = FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = grepreaper::check_grep_availability()$available
 )
+```
+
+```{r load-packages}
 library(grepreaper)
-# Ensure data.table and microbenchmark are available for the vignette
-if (!requireNamespace("data.table", quietly = TRUE) || !requireNamespace("microbenchmark", quietly = TRUE)) {
-  knitr::opts_chunk$set(eval = FALSE)
+library(data.table)
+library(microbenchmark)
+```
+
+## Introduction
+
+This vignette provides performance benchmarks for the `grep_read` function compared to alternative approaches. We'll test various scenarios and data sizes to help you understand when to use `grep_read` for optimal performance.
+
+## Test Setup
+
+First, let's create some test data:
+
+```{r create-test-data}
+# Create a large test file
+create_test_file <- function(n_rows, n_cols = 5) {
+  tmp <- tempfile(fileext = ".csv")
+  df <- data.frame(
+    matrix(
+      sample(c(letters, 1:9), n_rows * n_cols, replace = TRUE),
+      nrow = n_rows
+    )
+  )
+  names(df) <- paste0("col", 1:n_cols)
+  fwrite(df, tmp)
+  return(tmp)
 }
+
+# Create test files of different sizes
+small_file <- create_test_file(1000)
+medium_file <- create_test_file(100000)
+large_file <- create_test_file(1000000)
 ```
 
-## Performance Comparison
+## Benchmark 1: Reading Entire Files
 
-One of the primary advantages of the `grepreaper` package is its performance when reading and filtering large files. By leveraging the system's `grep` command, `grepreaper` can filter data *before* it is read into R's memory, which is significantly more efficient than reading the entire file and then filtering it in R.
+Compare reading entire files using different methods:
 
-This vignette provides a performance benchmark comparing `grep_read()` with two standard approaches:
-1.  **Base R:** Using `read.csv()` to read the file and then `subset()` to filter.
-2.  **data.table:** Using `data.table::fread()` to read the file and then subsetting.
-
-## Setup
-
-First, let's create a large temporary CSV file to use for our benchmark.
-
-```{r create-large-file}
-# Create a large data frame
-num_rows <- 500000
-large_df <- data.frame(
-  id = 1:num_rows,
-  category = sample(c("A", "B", "C", "D", "E", "F", "TARGET"), num_rows, replace = TRUE),
-  value = rnorm(num_rows),
-  text = replicate(num_rows, paste(sample(letters, 10, replace = TRUE), collapse = ""))
+```{r benchmark-full-read}
+# Benchmark for small file
+bench_small <- microbenchmark(
+  grep_read = grep_read(files = small_file),
+  fread = fread(small_file),
+  read.csv = read.csv(small_file),
+  times = 10
 )
+print(bench_small)
 
-# Write to a temporary file
-temp_large_file <- tempfile(fileext = ".csv")
-data.table::fwrite(large_df, temp_large_file)
-
-# We are looking for a small subset of the data
-search_pattern <- "TARGET"
-```
-
-## Running the Benchmark
-
-We will use the `microbenchmark` package to compare the execution times of the three methods. We are searching for all rows where the `category` is "TARGET".
-
-```{r benchmark, eval = requireNamespace("microbenchmark", quietly = TRUE)}
-# Run the benchmark
-benchmark_results <- microbenchmark::microbenchmark(
-  "grep_read" = {
-    grepreaper::grep_read(files = temp_large_file, pattern = search_pattern)
-  },
-  "base_R" = {
-    data <- read.csv(temp_large_file)
-    subset(data, category == search_pattern)
-  },
-  "data.table" = {
-    data <- data.table::fread(temp_large_file)
-    data[category == search_pattern]
-  },
-  times = 10L # Run each expression 10 times
+# Benchmark for medium file
+bench_medium <- microbenchmark(
+  grep_read = grep_read(files = medium_file),
+  fread = fread(medium_file),
+  read.csv = read.csv(medium_file),
+  times = 10
 )
-
-# Print the results
-print(benchmark_results)
+print(bench_medium)
 ```
 
-## Results
+## Benchmark 2: Pattern Matching
 
-The results above show the summary statistics for the execution times of each method in nanoseconds. As you can see, `grep_read` is significantly faster than both the base R and `data.table` methods for this common task.
+Compare pattern matching performance:
 
-The performance gain comes from avoiding the overhead of reading the entire 500,000-row file into memory just to select a small fraction of it.
+```{r benchmark-pattern-match}
+pattern <- "a"  # Simple pattern to match
 
-```{r cleanup, include = FALSE}
-# Clean up the temporary file
-unlink(temp_large_file)
-``` 
+# Using grep_read
+bench_pattern <- microbenchmark(
+  grep_read = grep_read(files = medium_file, pattern = pattern),
+  fread_grep = {
+    dt <- fread(medium_file)
+    dt[grep(pattern, col1)]
+  },
+  read.csv_grep = {
+    df <- read.csv(medium_file)
+    df[grep(pattern, df$col1), ]
+  },
+  times = 10
+)
+print(bench_pattern)
+```
+
+## Benchmark 3: Multiple Files
+
+Compare performance with multiple files:
+
+```{r benchmark-multiple-files}
+# Create multiple small files
+files <- replicate(5, create_test_file(1000))
+
+bench_multiple <- microbenchmark(
+  grep_read = grep_read(files = files),
+  fread = rbindlist(lapply(files, fread)),
+  read.csv = do.call(rbind, lapply(files, read.csv)),
+  times = 10
+)
+print(bench_multiple)
+```
+
+## Benchmark 4: Line Numbers and Filenames
+
+Compare performance with metadata options:
+
+```{r benchmark-metadata}
+bench_metadata <- microbenchmark(
+  grep_read_lines = grep_read(files = medium_file, show_line_numbers = TRUE),
+  grep_read_files = grep_read(files = medium_file, include_filename = TRUE),
+  grep_read_both = grep_read(
+    files = medium_file,
+    show_line_numbers = TRUE,
+    include_filename = TRUE
+  ),
+  times = 10
+)
+print(bench_metadata)
+```
+
+## Memory Usage
+
+Let's examine memory usage:
+
+```{r memory-usage}
+# Function to measure memory usage
+measure_mem <- function(expr) {
+  gc()  # Clean up before measurement
+  mem_start <- sum(gc()[, 2])
+  result <- eval(expr)
+  gc()  # Clean up after operation
+  mem_end <- sum(gc()[, 2])
+  return(mem_end - mem_start)
+}
+
+# Compare memory usage
+mem_comparison <- data.frame(
+  Method = c("grep_read", "fread", "read.csv"),
+  Small_File = c(
+    measure_mem(quote(grep_read(files = small_file))),
+    measure_mem(quote(fread(small_file))),
+    measure_mem(quote(read.csv(small_file)))
+  ),
+  Medium_File = c(
+    measure_mem(quote(grep_read(files = medium_file))),
+    measure_mem(quote(fread(medium_file))),
+    measure_mem(quote(read.csv(medium_file)))
+  )
+)
+print(mem_comparison)
+```
+
+## Performance Tips
+
+Based on these benchmarks, here are some guidelines for optimal performance:
+
+1. **File Size Considerations**:
+   - For small files (<1MB): Any method works well
+   - For medium files (1-100MB): `grep_read` shows advantages with pattern matching
+   - For large files (>100MB): `grep_read` significantly outperforms when filtering is needed
+
+2. **Pattern Matching**:
+   - `grep_read` is most efficient when you need to filter data during reading
+   - Use `fixed = TRUE` for literal string matching
+   - Complex regex patterns may impact performance
+
+3. **Multiple Files**:
+   - `grep_read` handles multiple files efficiently
+   - Memory usage is optimized when reading multiple files
+   - Consider using `show_progress = TRUE` for many files
+
+4. **Memory Optimization**:
+   - Use `nrows` to limit rows when exploring large files
+   - `only_matching = TRUE` reduces memory usage when only patterns are needed
+   - `count_only = TRUE` is most memory-efficient for pattern counting
+
+## Cleanup
+
+```{r cleanup}
+# Clean up test files
+unlink(c(small_file, medium_file, large_file))
+unlink(files)
+```

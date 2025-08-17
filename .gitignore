@@ -1,4 +1,24 @@
+# R specific
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+
+# Package specific
+*.tar.gz
+*.Rcheck/
+debug/
+testthat-problems.rds
+
+# System specific
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.vscode/
+.idea/
+
+# Temporary files
+*.swp
+*~
+*.bak

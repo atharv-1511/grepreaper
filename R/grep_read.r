@@ -4,13 +4,38 @@
 #' @param path Optional. Directory path to search for files.
 #' @param file_pattern Optional. A pattern to filter filenames when using the `path` argument. Passed to `list.files`.
 #' @param pattern Pattern to search for within files (passed to grep).
-#' @param invert,ignore_case,fixed,recursive,word_match,show_line_numbers,only_matching,count_only Various grep options.
-#' @param nrows,skip,header,col.names,include_filename,show_progress,... Additional options for reading and output.
-#' @return A data.table with the filtered results, or the grep command if show_cmd=TRUE.
+#' @param invert Logical; if TRUE, return non-matching lines.
+#' @param ignore_case Logical; if TRUE, perform case-insensitive matching.
+#' @param fixed Logical; if TRUE, pattern is a fixed string, not a regular expression.
+#' @param show_cmd Logical; if TRUE, return the grep command string instead of executing it.
+#' @param recursive Logical; if TRUE, search recursively through directories.
+#' @param word_match Logical; if TRUE, match only whole words.
+#' @param show_line_numbers Logical; if TRUE, include line numbers from source files. Headers are automatically removed and lines renumbered.
+#' @param only_matching Logical; if TRUE, return only the matching part of the lines.
+#' @param count_only Logical; if TRUE, return only the count of matching lines.
+#' @param nrows Integer; maximum number of rows to read.
+#' @param skip Integer; number of rows to skip.
+#' @param header Logical; if TRUE, treat first row as header.
+#' @param col.names Character vector of column names.
+#' @param include_filename Logical; if TRUE, include source filename as a column.
+#' @param show_progress Logical; if TRUE, show progress indicators.
+#' @param ... Additional arguments passed to fread.
+#' @return A data.table with different structures based on the options:
+#'   - Default: Data columns with original types preserved
+#'   - show_line_numbers=TRUE: Additional 'line_number' column (integer)
+#'   - include_filename=TRUE: Additional 'source_file' column (character)
+#'   - only_matching=TRUE: Single 'match' column with matched substrings
+#'   - count_only=TRUE: 'source_file' and 'count' columns
+#'   - show_cmd=TRUE: Character string containing the grep command
 #' @importFrom data.table fread setnames
 #' @export
 #' @note When searching for literal strings (not regex patterns), set `fixed = TRUE` to avoid regex interpretation. 
 #' For example, searching for "3.94" with `fixed = FALSE` will match "3894" because "." is a regex metacharacter.
+#' 
+#' Header rows are automatically handled:
+#'   - With show_line_numbers=TRUE: Headers (line_number=1) are removed and lines renumbered
+#'   - Without line numbers: Headers matching column names are removed
+#'   - Empty rows and all-NA rows are automatically filtered out
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
                       fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                       word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE,
@@ -160,49 +185,64 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         
         # Check if the first column contains colons (indicating metadata)
         if (grepl(":", first_col[1], fixed = TRUE)) {
-          # Split the first column on colons
-          split_parts <- data.table::tstrsplit(first_col, ":", fixed = TRUE)
+          # Split the first column on colons, but only for metadata
+          colon_count <- stringi::stri_count_fixed(first_col[1], ":")
+          expected_colons <- as.integer(has_filename) + as.integer(has_line_num)
           
-          # Determine how many parts we have
-          n_parts <- length(split_parts)
-          
-          if (n_parts >= 2) {
-            # Create a new data.table to properly reconstruct the data
+          if (colon_count >= expected_colons) {
+            # Create a new data.table
             new_dt <- data.table::data.table()
             
-            # Add filename if requested
-            if (has_filename && n_parts >= 3) {
-              new_dt[, source_file := split_parts[[1]]]
-              # Remove filename from split parts
-              split_parts <- split_parts[-1]
-              n_parts <- n_parts - 1
+            # Handle metadata first
+            if (has_filename || has_line_num) {
+              # Split the first column into metadata and data parts
+              split_result <- lapply(first_col, function(x) {
+                parts <- strsplit(x, ":", fixed = TRUE)[[1]]
+                if (length(parts) > expected_colons) {
+                  # Keep metadata parts and combine remaining as data
+                  metadata <- parts[1:expected_colons]
+                  data <- paste(parts[(expected_colons + 1):length(parts)], collapse = ":")
+                  c(metadata, data)
+                } else {
+                  parts
+                }
+              })
+              
+              # Convert to data.table
+              metadata_parts <- data.table::as.data.table(do.call(rbind, split_result))
+              
+              current_part <- 1
+              
+              # Add filename if requested
+              if (has_filename) {
+                new_dt[, source_file := metadata_parts[[1]]]
+                current_part <- 2
+              } else {
+                current_part <- 1
+              }
+              
+              # Add line number if requested
+              if (has_line_num) {
+                new_dt[, line_number := suppressWarnings(as.integer(metadata_parts[[current_part]]))]
+                current_part <- current_part + 1
+              }
+              
+              # Remaining parts form the data
+              if (ncol(metadata_parts) >= current_part) {
+                new_dt[, V1 := metadata_parts[[current_part]]]
+              }
+            } else {
+              # No metadata, just copy the data
+              new_dt[, V1 := first_col]
             }
             
-            # Add line number if requested
-            if (has_line_num && n_parts >= 1) {
-              new_dt[, line_number := suppressWarnings(as.integer(split_parts[[1]]))]
-              # Remove line number from split parts
-              split_parts <- split_parts[-1]
-              n_parts <- n_parts - 1
-            }
-            
-            # The remaining split_parts contain the first data field
-            # We need to combine this with the other columns from dt
-            original_cols <- names(dt)
-            data_cols <- original_cols[-1]  # All columns except the first
-            
-            # Add the first data field from split_parts
-            if (n_parts > 0) {
-              new_dt[, V1 := split_parts[[1]]]
-            }
-            
-            # Copy the remaining data columns to the new data.table
+            # Copy remaining columns
+            data_cols <- names(dt)[-1]
             for (i in seq_along(data_cols)) {
-              col_name <- data_cols[i]
-              new_dt[, (paste0("V", i+1)) := dt[[col_name]]]
+              new_dt[, (paste0("V", i+1)) := dt[[data_cols[i]]]]
             }
             
-            # Replace the original data.table with the new one
+            # Replace original data.table
             dt <- new_dt
           }
         }
@@ -223,12 +263,72 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         
         # --- Header row removal using mentor's data.table approach ---
         if (nrow(dt) > 0) {
-          # Simple header removal: remove first row if it contains column names
+          # Remove header rows and handle data types
           if (nrow(dt) > 0) {
-            first_row <- as.character(dt[1, ])
-            # Only remove if the first row exactly matches the column names
-            if (length(first_row) == length(names_to_set) && all(first_row == names_to_set)) {
-              dt <- dt[-1]
+            # Get data columns (excluding metadata columns)
+            data_cols <- setdiff(names(dt), c("source_file", "line_number"))
+            
+            # Remove header rows and handle data types
+            if (nrow(dt) > 0) {
+              # First pass: Remove header rows
+              header_rows <- dt[, {
+                row_vals <- as.character(.SD)
+                # Check if row matches column names exactly
+                any(sapply(row_vals, function(x) x %in% names_to_set))
+              }, by = 1:nrow(dt), .SDcols = data_cols]
+              
+              # Remove header rows
+              if (any(header_rows$V1)) {
+                dt <- dt[!header_rows$V1]
+              }
+              
+              # Second pass: Convert data types
+              for (col in data_cols) {
+                vals <- dt[[col]]
+                if (is.character(vals)) {
+                  # Try numeric conversion
+                  num_vals <- suppressWarnings(as.numeric(vals))
+                  if (!all(is.na(num_vals))) {
+                    dt[, (col) := num_vals]
+                  }
+                }
+              }
+              
+              # Remove any remaining all-NA rows
+              dt <- dt[!dt[, all(is.na(.SD)), .SDcols = data_cols]]
+            }
+            
+            # Handle source files and line numbers
+            if ("source_file" %in% names(dt)) {
+              # Clean up source file paths
+              dt[, source_file := basename(as.character(source_file))]
+              
+              # Remove any drive letter prefix (Windows paths)
+              dt[, source_file := sub("^[A-Za-z]:", "", source_file)]
+              
+              # Remove any leading path separators
+              dt[, source_file := sub("^[\\\\/]+", "", source_file)]
+              
+              # Group by source file for line numbers
+              if (show_line_numbers) {
+                # First sort by source file and original line number
+                if ("line_number" %in% names(dt)) {
+                  setorder(dt, source_file, line_number)
+                }
+                # Then renumber within each file
+                dt[, line_number := seq_len(.N), by = source_file]
+              }
+            } else if (show_line_numbers) {
+              # Simple sequential numbering for single file
+              if ("line_number" %in% names(dt)) {
+                setorder(dt, line_number)
+              }
+              dt[, line_number := seq_len(.N)]
+            }
+            
+            # Ensure integer type for line numbers
+            if ("line_number" %in% names(dt)) {
+              dt[, line_number := as.integer(line_number)]
             }
           }
           

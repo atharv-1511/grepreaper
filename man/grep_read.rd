@@ -2,7 +2,7 @@
 % Please edit documentation in R/grep_read.r
 \name{grep_read}
 \alias{grep_read}
-\title{Read and filter data from one or more files using grep}
+\title{grep_read: Efficiently read and filter lines from one or more files using grep, returning a data.table.}
 \usage{
 grep_read(
   files = NULL,
@@ -28,61 +28,64 @@ grep_read(
 )
 }
 \arguments{
-\item{files}{Character vector of file paths. If NULL, use the path parameter.}
+\item{files}{Character vector of file paths to read.}
 
-\item{path}{Optional. Character string specifying a directory to search for files. If files is NULL, all files in this path will be used.}
+\item{path}{Optional. Directory path to search for files.}
 
 \item{file_pattern}{Optional. A pattern to filter filenames when using the `path` argument. Passed to `list.files`.}
 
-\item{pattern}{Pattern to search for within files. Default is empty string (''), which reads all lines.}
+\item{pattern}{Pattern to search for within files (passed to grep).}
 
-\item{invert}{Logical; if TRUE, return non-matching lines (using grep -v).}
+\item{invert}{Logical; if TRUE, return non-matching lines.}
 
 \item{ignore_case}{Logical; if TRUE, perform case-insensitive matching.}
 
 \item{fixed}{Logical; if TRUE, pattern is a fixed string, not a regular expression.}
 
-\item{show_cmd}{Logical; if TRUE, print the grep command used.}
+\item{show_cmd}{Logical; if TRUE, return the grep command string instead of executing it.}
 
 \item{recursive}{Logical; if TRUE, search recursively through directories.}
 
 \item{word_match}{Logical; if TRUE, match only whole words.}
 
-\item{show_line_numbers}{Logical; if TRUE, include line numbers from source files.}
+\item{show_line_numbers}{Logical; if TRUE, include line numbers from source files. Headers are automatically removed and lines renumbered.}
 
 \item{only_matching}{Logical; if TRUE, return only the matching part of the lines.}
 
 \item{count_only}{Logical; if TRUE, return only the count of matching lines.}
 
-\item{nrows}{Integer; maximum number of rows to read, passed to fread.}
+\item{nrows}{Integer; maximum number of rows to read.}
 
-\item{skip}{Integer; number of rows to skip, passed to fread.}
+\item{skip}{Integer; number of rows to skip.}
 
-\item{header}{Logical; if TRUE, treat first row as header. If FALSE, no header is used.}
+\item{header}{Logical; if TRUE, treat first row as header.}
 
-\item{col.names}{Character vector of column names, passed to fread.}
+\item{col.names}{Character vector of column names.}
 
-\item{include_filename}{Logical; if TRUE, include source filename as a column (default: TRUE for multiple files).}
+\item{include_filename}{Logical; if TRUE, include source filename as a column.}
 
-\item{show_progress}{Logical; if TRUE, show progress indicators for large files.}
+\item{show_progress}{Logical; if TRUE, show progress indicators.}
 
 \item{...}{Additional arguments passed to fread.}
 }
 \value{
-A data.table containing the matched data (or command string if show_cmd=TRUE).
-        If count_only=TRUE, returns a data.table with file names and their match counts.
+A data.table with different structures based on the options:
+  - Default: Data columns with original types preserved
+  - show_line_numbers=TRUE: Additional 'line_number' column (integer)
+  - include_filename=TRUE: Additional 'source_file' column (character)
+  - only_matching=TRUE: Single 'match' column with matched substrings
+  - count_only=TRUE: 'source_file' and 'count' columns
+  - show_cmd=TRUE: Character string containing the grep command
 }
 \description{
-This function reads data from one or more files after filtering it with grep.
-It allows for flexible pattern matching and leverages data.table's fread for efficient data import.
+grep_read: Efficiently read and filter lines from one or more files using grep, returning a data.table.
 }
-\examples{
-\dontrun{
-# Read all lines from sample_data.csv
-all_data <- grep_read(files = "data/sample_data.csv")
+\note{
+When searching for literal strings (not regex patterns), set `fixed = TRUE` to avoid regex interpretation. 
+For example, searching for "3.94" with `fixed = FALSE` will match "3894" because "." is a regex metacharacter.
 
-# Read all .csv files in a directory
-all_data <- grep_read(path = "data", pattern = "", recursive = TRUE)
-}
-
+Header rows are automatically handled:
+  - With show_line_numbers=TRUE: Headers (line_number=1) are removed and lines renumbered
+  - Without line numbers: Headers matching column names are removed
+  - Empty rows and all-NA rows are automatically filtered out
 }
