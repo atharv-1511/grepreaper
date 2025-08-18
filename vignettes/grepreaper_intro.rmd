@@ -1,0 +1,116 @@
+---
+title: "Introduction to grepreaper"
+author: "Atharv Raskar"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to grepreaper}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(grepreaper)
+```
+
+## Overview
+
+The **grepreaper** package provides efficient file reading functions by leveraging the power of the command-line `grep` utility. It enables R users to filter, search, and read data from files based on pattern matching, without having to learn command-line syntax.
+
+This vignette introduces the main function of the package and demonstrates its use with examples.
+
+## Installation
+
+You can install the development version of grepreaper from GitHub:
+
+```r
+# install.packages("devtools")
+devtools::install_github("atharv-1511/grepreaper")
+```
+
+## Basic Usage
+
+First, let's load the package:
+
+```{r}
+library(grepreaper)
+```
+
+For demonstration purposes, we'll create a sample CSV file:
+
+```{r setup_files}
+# Create a temporary CSV file
+temp_file <- tempfile(fileext = ".csv")
+write.csv(data.frame(
+  ID = 1:10,
+  Name = c("Alice", "Bob", "Charlie", "David", "Eve", 
+           "Frank", "Grace", "Henry", "Ivy", "Jack"),
+  Department = c("HR", "IT", "IT", "Marketing", "HR",
+                "Finance", "IT", "Marketing", "HR", "Finance"),
+  Salary = c(60000, 75000, 90000, 55000, 65000,
+             85000, 70000, 62000, 67000, 72000)
+), temp_file, row.names = FALSE)
+```
+
+## Reading Filtered Data with `grep_read()`
+
+The `grep_read()` function filters data based on a pattern and returns a data.table:
+
+```{r filter_data, eval = grepreaper::check_grep_availability()$available}
+# Read rows containing "IT"
+it_employees <- grep_read(temp_file, "IT")
+print(it_employees)
+
+# Read rows NOT containing "IT" (all other departments)
+other_employees <- grep_read(temp_file, "IT", invert = TRUE)
+print(other_employees)
+```
+
+The function accepts many of the same parameters as `data.table::fread()`:
+
+```{r fread_params, eval = grepreaper::check_grep_availability()$available}
+# Specify column names
+grep_read(temp_file, "IT", col.names = c("EmpID", "EmpName", "Dept", "Compensation"))
+```
+
+## Working with Multiple Files
+
+All functions support working with multiple files:
+
+```{r multi_file, eval = grepreaper::check_grep_availability()$available}
+# Read data from multiple files
+combined_data <- grep_read(c(temp_file, temp_file), "IT")
+print(combined_data)
+```
+
+## Performance Considerations
+
+The main advantage of grepreaper is performance when working with large files. By using grep at the command line, we can filter data before loading it into R, which can be much faster than reading the entire file and then filtering.
+
+## Common Parameters
+
+All functions in grepreaper share these common parameters:
+
+- `files`: Character vector of file paths
+- `pattern`: Pattern to search for
+- `invert`: If TRUE, return non-matching lines
+- `ignore_case`: If TRUE, perform case-insensitive matching
+- `fixed`: If TRUE, treat pattern as fixed string (not regex)
+- `show_cmd`: If TRUE, return the grep command rather than executing it
+- `recursive`: If TRUE, search directories recursively
+- `word_match`: If TRUE, match only whole words
+
+## Cleaning Up
+
+```{r cleanup}
+# Remove temporary files
+unlink(temp_file)
+```
+
+## Conclusion
+
+The grepreaper package provides powerful tools for reading and filtering data from files based on pattern matching. By leveraging the efficiency of the command-line grep utility, it enables R users to work with large files more effectively.
