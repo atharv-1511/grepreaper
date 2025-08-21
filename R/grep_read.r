@@ -65,6 +65,26 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   if (!is.character(pattern) || length(pattern) != 1) {
     stop("'pattern' must be a single character string")
   }
+  
+  # Validate conflicting parameters
+  if (count_only && only_matching) {
+    stop("'count_only' and 'only_matching' cannot both be TRUE")
+  }
+  if (count_only && show_line_numbers) {
+    warning("'show_line_numbers' is ignored when 'count_only' is TRUE")
+    show_line_numbers <- FALSE
+  }
+  if (only_matching && show_line_numbers) {
+    warning("'show_line_numbers' is ignored when 'only_matching' is TRUE")
+    show_line_numbers <- FALSE
+  }
+  if (!is.finite(nrows) || nrows < 0) {
+    stop("'nrows' must be a non-negative finite number")
+  }
+  if (!is.finite(skip) || skip < 0) {
+    stop("'skip' must be a non-negative finite number")
+  }
+  
   # Check that all files exist
   missing_files <- files[!file.exists(files)]
   if (length(missing_files) > 0) {
@@ -306,6 +326,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             
             # Add data columns - the V1 column contains the CSV data that needs to be split further
             data_part <- split_result$V1
+            max_cols <- 0  # Initialize max_cols to prevent undefined variable error
             
             # Split the data part on commas to get individual columns
             if (length(data_part) > 0) {
@@ -326,8 +347,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             
             # Copy remaining columns from original data.table (if any)
             data_cols <- names(dt)[-1]
-            for (i in seq_along(data_cols)) {
-              new_dt[, (paste0("V", i + max_cols)) := dt[[data_cols[i]]]]
+            if (length(data_cols) > 0) {
+              for (i in seq_along(data_cols)) {
+                new_dt[, (paste0("V", i + max_cols)) := dt[[data_cols[i]]]]
+              }
             }
             
             # Replace original data.table
@@ -351,93 +374,89 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         
         # --- Header row removal using mentor's data.table approach ---
         if (nrow(dt) > 0) {
-          # Remove header rows and handle data types
+          # Get data columns (excluding metadata columns)
+          data_cols <- setdiff(names(dt), c("source_file", "line_number"))
+          
+          # First pass: Remove header rows
+          header_rows <- dt[, {
+            row_vals <- as.character(.SD)
+            # Check if row matches column names exactly
+            any(sapply(row_vals, function(x) x %in% names_to_set))
+          }, by = 1:nrow(dt), .SDcols = data_cols]
+          
+          # Remove header rows
+          if (any(header_rows$V1)) {
+            dt <- dt[!header_rows$V1]
+          }
+          
+          # Second pass: Convert data types
+          for (col in data_cols) {
+            vals <- dt[[col]]
+            if (is.character(vals)) {
+              # Try numeric conversion
+              num_vals <- suppressWarnings(as.numeric(vals))
+              if (!all(is.na(num_vals))) {
+                dt[, (col) := num_vals]
+              }
+            }
+          }
+          
+          # Remove any remaining all-NA rows
           if (nrow(dt) > 0) {
-            # Get data columns (excluding metadata columns)
-            data_cols <- setdiff(names(dt), c("source_file", "line_number"))
-            
-            # Remove header rows and handle data types
-            if (nrow(dt) > 0) {
-              # First pass: Remove header rows
-              header_rows <- dt[, {
-                row_vals <- as.character(.SD)
-                # Check if row matches column names exactly
-                any(sapply(row_vals, function(x) x %in% names_to_set))
-              }, by = 1:nrow(dt), .SDcols = data_cols]
-              
-              # Remove header rows
-              if (any(header_rows$V1)) {
-                dt <- dt[!header_rows$V1]
-              }
-              
-              # Second pass: Convert data types
-              for (col in data_cols) {
-                vals <- dt[[col]]
-                if (is.character(vals)) {
-                  # Try numeric conversion
-                  num_vals <- suppressWarnings(as.numeric(vals))
-                  if (!all(is.na(num_vals))) {
-                    dt[, (col) := num_vals]
-                  }
-                }
-              }
-              
-              # Remove any remaining all-NA rows
-              dt <- dt[!dt[, all(is.na(.SD)), .SDcols = data_cols]]
-            }
-            
-            # Handle source files and line numbers
-            if ("source_file" %in% names(dt)) {
-              # Clean up source file paths
-              dt[, source_file := basename(as.character(source_file))]
-              
-              # Remove any drive letter prefix (Windows paths)
-              dt[, source_file := sub("^[A-Za-z]:", "", source_file)]
-              
-              # Remove any leading path separators
-              dt[, source_file := sub("^[\\\\/]+", "", source_file)]
-              
-              # Group by source file for line numbers
-              if (show_line_numbers) {
-                # First sort by source file and original line number
-                if ("line_number" %in% names(dt)) {
-                  setorder(dt, source_file, line_number)
-                }
-                # Then renumber within each file
-                dt[, line_number := seq_len(.N), by = source_file]
-              }
-              
-              # If user doesn't want filename displayed, remove the column
-              if (!include_filename) {
-                dt[, source_file := NULL]
-              }
-            } else if (show_line_numbers) {
-              # Simple sequential numbering for single file
-              if ("line_number" %in% names(dt)) {
-                setorder(dt, line_number)
-              }
-              dt[, line_number := seq_len(.N)]
-            }
-            
-            # Ensure integer type for line numbers
+            dt <- dt[!dt[, all(is.na(.SD)), .SDcols = data_cols]]
+          }
+        }
+        
+        # Handle source files and line numbers
+        if ("source_file" %in% names(dt)) {
+          # Clean up source file paths
+          dt[, source_file := basename(as.character(source_file))]
+          
+          # Remove any drive letter prefix (Windows paths)
+          dt[, source_file := sub("^[A-Za-z]:", "", source_file)]
+          
+          # Remove any leading path separators
+          dt[, source_file := sub("^[\\\\/]+", "", source_file)]
+          
+          # Group by source file for line numbers
+          if (show_line_numbers) {
+            # First sort by source file and original line number
             if ("line_number" %in% names(dt)) {
-              dt[, line_number := as.integer(line_number)]
+              data.table::setorder(dt, source_file, line_number)
             }
+            # Then renumber within each file
+            dt[, line_number := seq_len(.N), by = source_file]
           }
           
-          # Remove all-NA rows using data.table approach
-          if (nrow(dt) > 0) {
-            na_row_idx <- dt[, which(rowMeans(is.na(.SD)) < 1)]
-            if (length(na_row_idx) > 0) {
-              dt <- dt[na_row_idx]
-            }
+          # If user doesn't want filename displayed, remove the column
+          if (!include_filename) {
+            dt[, source_file := NULL]
           }
-          
-          # Convert empty strings to NA for better handling
-          for (col in names_to_set) {
-            if (col %in% names(dt)) {
-              dt[dt[[col]] == "", (col) := NA_character_]
-            }
+        } else if (show_line_numbers) {
+          # Simple sequential numbering for single file
+          if ("line_number" %in% names(dt)) {
+            data.table::setorder(dt, line_number)
+          }
+          dt[, line_number := seq_len(.N)]
+        }
+        
+        # Ensure integer type for line numbers
+        if ("line_number" %in% names(dt)) {
+          dt[, line_number := as.integer(line_number)]
+        }
+        
+        # Remove all-NA rows using data.table approach
+        if (nrow(dt) > 0) {
+          na_row_idx <- dt[, which(rowMeans(is.na(.SD)) < 1)]
+          if (length(na_row_idx) > 0) {
+            dt <- dt[na_row_idx]
+          }
+        }
+        
+        # Convert empty strings to NA for better handling
+        for (col in names_to_set) {
+          if (col %in% names(dt)) {
+            dt[dt[[col]] == "", (col) := NA_character_]
           }
         }
         

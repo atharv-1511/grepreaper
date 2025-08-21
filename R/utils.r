@@ -2,22 +2,48 @@
 split.columns <- function(x, column.names = NA, split = ":", resulting.columns = 3, fixed = TRUE) {
   require(data.table)
  
+  # Input validation
+  if (!is.character(x) || length(x) == 0) {
+    stop("'x' must be a non-empty character vector")
+  }
+  if (!is.numeric(resulting.columns) || resulting.columns < 1) {
+    stop("'resulting.columns' must be a positive integer")
+  }
+  
   the.pieces <- strsplit(x = x, split = split, fixed = fixed)
  
-  new.columns <- data.table()
- 
+  # Create empty data.table with the right number of rows
+  new.columns <- data.table(row_id = seq_along(x))
+  
+  # Add each column one by one to ensure character types
   for(i in 1:resulting.columns) {
     if(i < resulting.columns) {
-      new.columns[, eval(sprintf("V%s", i)) := lapply(X = the.pieces, FUN = function(y) {
-        return(y[i])
-      })]
-    }
-    if(i == resulting.columns) {
-      new.columns[, eval(sprintf("V%s", i)) := lapply(X = the.pieces, FUN = function(y) {
-        return(paste(y[i:length(y)], collapse = ":"))
-      })]
+      # Extract single elements
+      col_values <- character(length(the.pieces))
+      for(j in seq_along(the.pieces)) {
+        if (length(the.pieces[[j]]) >= i) {
+          col_values[j] <- the.pieces[[j]][i]
+        } else {
+          col_values[j] <- NA_character_
+        }
+      }
+      new.columns[, (sprintf("V%s", i)) := col_values]
+    } else {
+      # Combine remaining elements for the last column
+      col_values <- character(length(the.pieces))
+      for(j in seq_along(the.pieces)) {
+        if (length(the.pieces[[j]]) >= i) {
+          col_values[j] <- paste(the.pieces[[j]][i:length(the.pieces[[j]])], collapse = ":")
+        } else {
+          col_values[j] <- NA_character_
+        }
+      }
+      new.columns[, (sprintf("V%s", i)) := col_values]
     }
   }
+  
+  # Remove the temporary row_id column
+  new.columns[, row_id := NULL]
  
   if(!is.na(column.names[1])) {
     setnames(x = new.columns, old = names(new.columns), new = column.names)
@@ -50,10 +76,28 @@ check_grep_availability <- function() {
 #' @return Command string
 #' @export
 build_grep_cmd <- function(pattern, files, options = "") {
-  if (options != "") {
-    options <- paste(options, "")
+  # Input validation
+  if (!is.character(pattern) || length(pattern) != 1 || nchar(pattern) == 0) {
+    stop("'pattern' must be a non-empty character string")
   }
-  cmd <- sprintf("grep %s%s %s", options, shQuote(pattern), paste(shQuote(files), collapse = " "))
+  if (!is.character(files) || length(files) == 0) {
+    stop("'files' must be a non-empty character vector")
+  }
+  if (!is.character(options)) {
+    stop("'options' must be a character string")
+  }
+  
+  # Sanitize inputs to prevent command injection
+  pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape dangerous characters
+  files <- normalizePath(files, mustWork = FALSE)  # Normalize file paths
+  
+  # Build command with proper spacing
+  if (nchar(options) > 0) {
+    cmd <- sprintf("grep %s %s %s", options, shQuote(pattern), paste(shQuote(files), collapse = " "))
+  } else {
+    cmd <- sprintf("grep %s %s", shQuote(pattern), paste(shQuote(files), collapse = " "))
+  }
+  
   return(cmd)
 }
 
