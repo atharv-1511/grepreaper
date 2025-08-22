@@ -204,8 +204,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         }
       } else {
         # Use grep for pattern matching
-        # Check if the command returns any results first
-        result <- safe_system_call(cmd)
+      # Check if the command returns any results first
+      result <- safe_system_call(cmd)
       if (length(result) == 0) {
         # No matches found, return empty data.table with appropriate structure
         if (!is.null(col.names)) {
@@ -221,7 +221,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
               res <- data.table::data.table()
             }
           }, error = function(e) {
-            res <- data.table::data.table()
+          res <- data.table::data.table()
           })
         }
         return(res)
@@ -230,20 +230,20 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
       # Use fread with the command, ensuring no skip parameters
       dt <- do.call(data.table::fread, c(list(cmd = cmd, header = FALSE, nrows = nrows), args))
       
-        # --- Auto-determine column names if not provided ---
-  if (is.null(col.names) && header) {
-    # Try to read the header from the first file
-    tryCatch({
-      first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
-      if (length(first_file_header) > 0) {
-        # Use fread with explicit parameters to avoid skip issues
-        header_dt <- data.table::fread(text = first_file_header, header = TRUE, skip = 0)
-        first_file_cols <- colnames(header_dt)
-        if (length(first_file_cols) > 0) {
-          col.names <- first_file_cols
-        }
-      }
-    }, error = function(e) {
+      # --- Auto-determine column names if not provided ---
+      if (is.null(col.names) && header) {
+        # Try to read the header from the first file
+        tryCatch({
+          first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
+          if (length(first_file_header) > 0) {
+            # Use fread with explicit parameters to avoid skip issues
+            header_dt <- data.table::fread(text = first_file_header, header = TRUE, skip = 0)
+            first_file_cols <- colnames(header_dt)
+            if (length(first_file_cols) > 0) {
+              col.names <- first_file_cols
+            }
+          }
+        }, error = function(e) {
       # If header reading fails, try alternative approach
       tryCatch({
         # Try reading with explicit encoding
@@ -421,7 +421,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             # Copy remaining columns from original data.table (if any)
             data_cols <- names(dt)[-1]
             if (length(data_cols) > 0) {
-              for (i in seq_along(data_cols)) {
+            for (i in seq_along(data_cols)) {
                 new_dt[, (paste0("V", i + max_cols)) := dt[[data_cols[i]]]]
               }
             }
@@ -446,90 +446,90 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
         data.table::setnames(dt, data_cols_indices[1:length(names_to_set)], names_to_set)
         
         # --- Header row removal using mentor's data.table approach ---
-        if (nrow(dt) > 0) {
-          # Get data columns (excluding metadata columns)
-          data_cols <- setdiff(names(dt), c("source_file", "line_number"))
-          
-          # First pass: Remove header rows
-          header_rows <- dt[, {
-            row_vals <- as.character(.SD)
-            # Check if row matches column names exactly
-            any(sapply(row_vals, function(x) x %in% names_to_set))
-          }, by = 1:nrow(dt), .SDcols = data_cols]
-          
-          # Remove header rows
-          if (any(header_rows$V1)) {
-            dt <- dt[!header_rows$V1]
-          }
-          
-          # Second pass: Convert data types
-          for (col in data_cols) {
-            vals <- dt[[col]]
-            if (is.character(vals)) {
-              # Try numeric conversion
-              num_vals <- suppressWarnings(as.numeric(vals))
-              if (!all(is.na(num_vals))) {
-                dt[, (col) := num_vals]
-              }
-            }
-          }
-          
-          # Remove any remaining all-NA rows
           if (nrow(dt) > 0) {
-            dt <- dt[!dt[, all(is.na(.SD)), .SDcols = data_cols]]
+            # Get data columns (excluding metadata columns)
+            data_cols <- setdiff(names(dt), c("source_file", "line_number"))
+            
+              # First pass: Remove header rows
+              header_rows <- dt[, {
+                row_vals <- as.character(.SD)
+                # Check if row matches column names exactly
+                any(sapply(row_vals, function(x) x %in% names_to_set))
+              }, by = 1:nrow(dt), .SDcols = data_cols]
+              
+              # Remove header rows
+              if (any(header_rows$V1)) {
+                dt <- dt[!header_rows$V1]
+              }
+              
+              # Second pass: Convert data types
+              for (col in data_cols) {
+                vals <- dt[[col]]
+                if (is.character(vals)) {
+                  # Try numeric conversion
+                  num_vals <- suppressWarnings(as.numeric(vals))
+                  if (!all(is.na(num_vals))) {
+                    dt[, (col) := num_vals]
+                  }
+                }
+              }
+              
+              # Remove any remaining all-NA rows
+          if (nrow(dt) > 0) {
+              dt <- dt[!dt[, all(is.na(.SD)), .SDcols = data_cols]]
           }
-        }
-        
-        # Handle source files and line numbers
-        if ("source_file" %in% names(dt)) {
-          # Clean up source file paths
-          dt[, source_file := basename(as.character(source_file))]
-          
-          # Remove any drive letter prefix (Windows paths)
-          dt[, source_file := sub("^[A-Za-z]:", "", source_file)]
-          
-          # Remove any leading path separators
-          dt[, source_file := sub("^[\\\\/]+", "", source_file)]
-          
-          # Group by source file for line numbers
-          if (show_line_numbers) {
-            # First sort by source file and original line number
-            if ("line_number" %in% names(dt)) {
-              data.table::setorder(dt, source_file, line_number)
             }
-            # Then renumber within each file
-            dt[, line_number := seq_len(.N), by = source_file]
-          }
+            
+            # Handle source files and line numbers
+            if ("source_file" %in% names(dt)) {
+              # Clean up source file paths
+              dt[, source_file := basename(as.character(source_file))]
+              
+              # Remove any drive letter prefix (Windows paths)
+              dt[, source_file := sub("^[A-Za-z]:", "", source_file)]
+              
+              # Remove any leading path separators
+              dt[, source_file := sub("^[\\\\/]+", "", source_file)]
+              
+              # Group by source file for line numbers
+              if (show_line_numbers) {
+                # First sort by source file and original line number
+                if ("line_number" %in% names(dt)) {
+              data.table::setorder(dt, source_file, line_number)
+                }
+                # Then renumber within each file
+                dt[, line_number := seq_len(.N), by = source_file]
+              }
           
           # If user doesn't want filename displayed, remove the column
           if (!include_filename) {
             dt[, source_file := NULL]
           }
-        } else if (show_line_numbers) {
-          # Simple sequential numbering for single file
-          if ("line_number" %in% names(dt)) {
+            } else if (show_line_numbers) {
+              # Simple sequential numbering for single file
+              if ("line_number" %in% names(dt)) {
             data.table::setorder(dt, line_number)
+              }
+              dt[, line_number := seq_len(.N)]
+            }
+            
+            # Ensure integer type for line numbers
+            if ("line_number" %in% names(dt)) {
+              dt[, line_number := as.integer(line_number)]
           }
-          dt[, line_number := seq_len(.N)]
-        }
-        
-        # Ensure integer type for line numbers
-        if ("line_number" %in% names(dt)) {
-          dt[, line_number := as.integer(line_number)]
-        }
-        
-        # Remove all-NA rows using data.table approach
-        if (nrow(dt) > 0) {
-          na_row_idx <- dt[, which(rowMeans(is.na(.SD)) < 1)]
-          if (length(na_row_idx) > 0) {
-            dt <- dt[na_row_idx]
+          
+          # Remove all-NA rows using data.table approach
+          if (nrow(dt) > 0) {
+            na_row_idx <- dt[, which(rowMeans(is.na(.SD)) < 1)]
+            if (length(na_row_idx) > 0) {
+              dt <- dt[na_row_idx]
+            }
           }
-        }
-        
-        # Convert empty strings to NA for better handling
-        for (col in names_to_set) {
-          if (col %in% names(dt)) {
-            dt[dt[[col]] == "", (col) := NA_character_]
+          
+          # Convert empty strings to NA for better handling
+          for (col in names_to_set) {
+            if (col %in% names(dt)) {
+              dt[dt[[col]] == "", (col) := NA_character_]
           }
         }
         
@@ -544,7 +544,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             
             # If we have column names, use them; otherwise try to infer from header
             if (!is.null(col.names)) {
-              shallow <- do.call(data.table::fread, c(list(files[1], nrows = 5, header = header, col.names = col.names), shallow_args))
+            shallow <- do.call(data.table::fread, c(list(files[1], nrows = 5, header = header, col.names = col.names), shallow_args))
             } else {
               # Try to read header to get column names for type inference
               header_line <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
@@ -579,7 +579,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
                   dt[[col]] <- suppressWarnings(as.Date(dt[[col]]))
                 } else if (col_class == "POSIXct") {
                   dt[[col]] <- suppressWarnings(as.POSIXct(dt[[col]]))
-                } else {
+  } else {
                   # For all other types (including factor), convert to character to preserve data
                   dt[[col]] <- as.character(dt[[col]])
                 }

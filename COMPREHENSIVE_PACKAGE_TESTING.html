@@ -1990,7 +1990,7 @@ and edge cases.</p>
 <span id="cb39-39"><a href="#cb39-39" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Large file performance: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb39-40"><a href="#cb39-40" tabindex="-1"></a>})</span></code></pre></div>
 <pre><code>## ✅ Large file performance: PASS
-##    Processed 10000 rows in 1.71 seconds</code></pre>
+##    Processed 10000 rows in 1.63 seconds</code></pre>
 <pre><code>## [1] TRUE</code></pre>
 </div>
 <div id="test-9-error-handling-and-validation" class="section level3">
@@ -2019,7 +2019,7 @@ and edge cases.</p>
 <span id="cb44-19"><a href="#cb44-19" tabindex="-1"></a>  })</span>
 <span id="cb44-20"><a href="#cb44-20" tabindex="-1"></a>}</span></code></pre></div>
 <pre><code>## ✅ empty_files : PASS - Error caught: &#39;files&#39; must be a non-empty character vector 
-## ✅ invalid_pattern : PASS - Error caught: &#39;pattern&#39; must be a non-empty character string 
+## ❌ invalid_pattern : FAIL - Error not caught
 ## ✅ nonexistent_file : PASS - Error caught: The following file(s) do not exist: nonexistent.csv 
 ## ✅ conflicting_params : PASS - Error caught: &#39;count_only&#39; and &#39;only_matching&#39; cannot both be TRUE 
 ## ✅ invalid_nrows : PASS - Error caught: &#39;nrows&#39; must be a non-negative number or Inf</code></pre>
@@ -2081,11 +2081,11 @@ and edge cases.</p>
 <span id="cb54-7"><a href="#cb54-7" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Total Tests:&quot;</span>, total_tests, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
 <pre><code>## Total Tests: 16</code></pre>
 <div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Passed:&quot;</span>, passed_tests, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
-<pre><code>## Passed: 14</code></pre>
+<pre><code>## Passed: 13</code></pre>
 <div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Failed:&quot;</span>, failed_tests, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
-<pre><code>## Failed: 2</code></pre>
+<pre><code>## Failed: 3</code></pre>
 <div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Success Rate:&quot;</span>, success_rate, <span class="st">&quot;%</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
-<pre><code>## Success Rate: 87.5 %</code></pre>
+<pre><code>## Success Rate: 81.2 %</code></pre>
 <div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" tabindex="-1"></a><span class="co"># Show detailed results</span></span>
 <span id="cb62-2"><a href="#cb62-2" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">Detailed Results:</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
 <pre><code>## 
@@ -2103,9 +2103,9 @@ and edge cases.</p>
 ## filename_inclusion             ✅ PASS - Files processed: 1
 ## special_characters             ✅ PASS - Colons preserved: TRUE Commas preserved: TRUE
 ## data_type_preservation         ❌ FAIL - Correct types: 2 / 4
-## large_file_performance         ✅ PASS - Time: 1.71 s for 10000 rows
+## large_file_performance         ✅ PASS - Time: 1.63 s for 10000 rows
 ## error_handling_empty_files     ✅ PASS - &#39;files&#39; must be a non-empty character vector
-## error_handling_invalid_pattern ✅ PASS - &#39;pattern&#39; must be a non-empty character string
+## error_handling_invalid_pattern ❌ FAIL - Error not caught
 ## error_handling_nonexistent_file ✅ PASS - The following file(s) do not exist: nonexistent.csv
 ## error_handling_conflicting_params ✅ PASS - &#39;count_only&#39; and &#39;only_matching&#39; cannot both be TRUE
 ## error_handling_invalid_nrows   ✅ PASS - &#39;nrows&#39; must be a non-negative number or Inf

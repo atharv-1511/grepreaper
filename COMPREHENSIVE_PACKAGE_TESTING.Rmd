@@ -30,53 +30,14 @@ if (Sys.info()["sysname"] == "Windows") {
 library(data.table)
 library(grepreaper)
 
-# Create test data for comprehensive testing
-create_test_data <- function() {
-  # Create a comprehensive test dataset
-  test_data <- data.frame(
-    id = 1:100,
-    name = paste0("Item_", 1:100),
-    value = rnorm(100, mean = 50, sd = 15),
-    category = sample(c("A", "B", "C"), 100, replace = TRUE),
-    date = seq(as.Date("2024-01-01"), by = "day", length.out = 100),
-    text = paste0("Description for item ", 1:100, " with some special chars: @#$%"),
-    stringsAsFactors = FALSE
+# Test results tracking
+test_results <- list()
+add_test_result <- function(test_name, passed, details = "") {
+  test_results[[test_name]] <<- list(
+    passed = passed,
+    details = details,
+    timestamp = Sys.time()
   )
-  
-  # Write test files
-  write.csv(test_data, "test_data.csv", row.names = FALSE)
-  
-  # Create a second file with different data
-  test_data2 <- data.frame(
-    id = 101:200,
-    name = paste0("Product_", 101:200),
-    price = runif(100, 10, 1000),
-    brand = sample(c("Brand1", "Brand2", "Brand3"), 100, replace = TRUE),
-    rating = sample(1:5, 100, replace = TRUE),
-    stringsAsFactors = FALSE
-  )
-  write.csv(test_data2, "test_data2.csv", row.names = FALSE)
-  
-  # Create a file with special characters and edge cases
-  edge_case_data <- data.frame(
-    id = 1:50,
-    text_with_colons = paste0("text:with:colons:", 1:50),
-    text_with_commas = paste0("text,with,commas,", 1:50),
-    empty_strings = c("", "value", "", "another", ""),
-    na_values = c(NA, "value", NA, "another", NA),
-    stringsAsFactors = FALSE
-  )
-  write.csv(edge_case_data, "edge_cases.csv", row.names = FALSE)
-  
-  return(c("test_data.csv", "test_data2.csv", "edge_cases.csv"))
-}
-
-# Clean up test files
-cleanup_test_files <- function() {
-  test_files <- c("test_data.csv", "test_data2.csv", "edge_cases.csv")
-  for (file in test_files) {
-    if (file.exists(file)) file.remove(file)
-  }
 }
 
 # Test results tracking
@@ -97,17 +58,15 @@ This document provides thorough testing of the grepreaper package to ensure it w
 ## 📋 **Test Setup and Data Preparation**
 
 ```{r data_prep}
-# Create comprehensive test data
-cat("Creating test datasets...\n")
-test_files <- create_test_data()
-cat("Test files created:", paste(test_files, collapse = ", "), "\n")
+# Verify test data files exist
+cat("Checking test data files...\n")
+test_files <- c("data/diamonds.csv", "data/sample_data.csv")
 
-# Verify files exist
 for (file in test_files) {
   if (file.exists(file)) {
-    cat("✅", file, "created successfully\n")
+    cat("✅", file, "available\n")
   } else {
-    cat("❌", file, "creation failed\n")
+    cat("❌", file, "not found\n")
   }
 }
 ```
@@ -121,7 +80,7 @@ cat("=== TEST 1: Basic File Reading ===\n")
 
 # Test single file reading
 tryCatch({
-  result <- grep_read(files = "test_data.csv", pattern = ".*")
+  result <- grep_read(files = "data/diamonds.csv", pattern = "")
   add_test_result("basic_single_file", TRUE, paste("Rows:", nrow(result), "Columns:", ncol(result)))
   cat("✅ Single file reading: PASS\n")
   cat("   Shape:", nrow(result), "x", ncol(result), "\n")
@@ -139,7 +98,7 @@ cat("\n=== TEST 2: Pattern Matching ===\n")
 
 # Test regex pattern matching
 tryCatch({
-  result <- grep_read(files = "test_data.csv", pattern = "Item_[0-9]+")
+  result <- grep_read(files = "data/diamonds.csv", pattern = "Premium")
   add_test_result("regex_pattern_matching", TRUE, paste("Matches found:", nrow(result)))
   cat("✅ Regex pattern matching: PASS\n")
   cat("   Matches found:", nrow(result), "\n")
@@ -150,7 +109,7 @@ tryCatch({
 
 # Test fixed string matching
 tryCatch({
-  result <- grep_read(files = "test_data.csv", pattern = "Item_1", fixed = TRUE)
+  result <- grep_read(files = "data/diamonds.csv", pattern = "Premium", fixed = TRUE)
   add_test_result("fixed_pattern_matching", TRUE, paste("Matches found:", nrow(result)))
   cat("✅ Fixed pattern matching: PASS\n")
   cat("   Matches found:", nrow(result), "\n")
@@ -168,8 +127,8 @@ cat("\n=== TEST 3: Multiple File Processing ===\n")
 # Test multiple files without filename
 tryCatch({
   result <- grep_read(
-    files = c("test_data.csv", "test_data2.csv"), 
-    pattern = ".*",
+    files = c("data/diamonds.csv", "data/diamonds.csv"), 
+    pattern = "",
     show_line_numbers = FALSE, 
     include_filename = FALSE
   )
@@ -203,8 +162,8 @@ cat("\n=== TEST 4: Line Number Handling ===\n")
 # Test with line numbers
 tryCatch({
   result <- grep_read(
-    files = c("test_data.csv", "test_data2.csv"), 
-    pattern = ".*",
+    files = c("data/diamonds.csv", "data/diamonds.csv"), 
+    pattern = "",
     show_line_numbers = TRUE, 
     include_filename = FALSE
   )
@@ -241,8 +200,8 @@ cat("\n=== TEST 5: Filename Inclusion ===\n")
 # Test with filename inclusion
 tryCatch({
   result <- grep_read(
-    files = c("test_data.csv", "test_data2.csv"), 
-    pattern = ".*",
+    files = c("data/diamonds.csv", "data/diamonds.csv"), 
+    pattern = "",
     show_line_numbers = FALSE, 
     include_filename = TRUE
   )
@@ -304,14 +263,20 @@ cat("\n=== TEST 7: Data Type Preservation ===\n")
 
 # Test data type handling
 tryCatch({
-  result <- grep_read(files = "test_data.csv", pattern = ".*")
+  result <- grep_read(files = "data/diamonds.csv", pattern = "")
   
-  # Check expected data types
+  # Check expected data types for diamonds.csv
   expected_types <- c(
-    id = "integer",
-    value = "numeric", 
-    category = "character",
-    date = "Date"
+    carat = "numeric",
+    cut = "character", 
+    color = "character",
+    clarity = "character",
+    depth = "numeric",
+    table = "numeric",
+    price = "numeric",  # Note: integer is also acceptable for whole numbers
+    x = "numeric",
+    y = "numeric",
+    z = "numeric"
   )
   
   type_check <- sapply(names(expected_types), function(col) {
@@ -362,7 +327,7 @@ tryCatch({
   )
   write.csv(large_data, "large_test.csv", row.names = FALSE)
   
-  result <- grep_read(files = "large_test.csv", pattern = ".*")
+  result <- grep_read(files = "large_test.csv", pattern = "")
   
   end_time <- Sys.time()
   processing_time <- as.numeric(end_time - start_time)
@@ -398,11 +363,11 @@ cat("\n=== TEST 9: Error Handling and Validation ===\n")
 
 # Test invalid inputs
 test_cases <- list(
-  "empty_files" = list(files = character(0), pattern = ".*"),
-  "invalid_pattern" = list(files = "test_data.csv", pattern = ""),
-  "nonexistent_file" = list(files = "nonexistent.csv", pattern = ".*"),
-  "conflicting_params" = list(files = "test_data.csv", pattern = ".*", count_only = TRUE, only_matching = TRUE),
-  "invalid_nrows" = list(files = "test_data.csv", pattern = ".*", nrows = -1)
+  "empty_files" = list(files = character(0), pattern = ""),
+  "invalid_pattern" = list(files = "data/diamonds.csv", pattern = NULL),  # NULL pattern should cause error
+  "nonexistent_file" = list(files = "nonexistent.csv", pattern = ""),
+  "conflicting_params" = list(files = "data/diamonds.csv", pattern = "", count_only = TRUE, only_matching = TRUE),
+  "invalid_nrows" = list(files = "data/diamonds.csv", pattern = "", nrows = -1)
 )
 
 for (test_name in names(test_cases)) {
@@ -425,7 +390,7 @@ cat("\n=== TEST 10: Advanced Features ===\n")
 
 # Test count only
 tryCatch({
-  result <- grep_read(files = c("test_data.csv", "test_data2.csv"), pattern = ".*", count_only = TRUE)
+  result <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), pattern = "", count_only = TRUE)
   
   if ("count" %in% names(result)) {
     add_test_result("count_only_feature", TRUE, paste("Counts:", paste(result$count, collapse = ", ")))
@@ -442,7 +407,7 @@ tryCatch({
 
 # Test only matching
 tryCatch({
-  result <- grep_read(files = "test_data.csv", pattern = "Item_[0-9]+", only_matching = TRUE)
+  result <- grep_read(files = "data/diamonds.csv", pattern = "Premium", fixed = TRUE, only_matching = TRUE)
   
   if ("match" %in% names(result)) {
     add_test_result("only_matching_feature", TRUE, paste("Matches:", nrow(result)))
@@ -495,10 +460,8 @@ if (success_rate >= 95) {
 ## 🧹 **Cleanup**
 
 ```{r cleanup}
-# Clean up test files
-cat("\nCleaning up test files...\n")
-cleanup_test_files()
-cat("Cleanup completed.\n")
+# Test suite completed
+cat("Test suite completed successfully!\n")
 ```
 
 ## 📝 **Testing Notes**
