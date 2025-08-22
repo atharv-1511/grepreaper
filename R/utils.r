@@ -1,5 +1,13 @@
+#' Split columns based on a delimiter
+#' @param x Character vector to split
+#' @param column.names Names for the resulting columns
+#' @param split Delimiter to split on
+#' @param resulting.columns Number of columns to create
+#' @param fixed Whether to use fixed string matching
+#' @return data.table with split columns
 #' @export
-split.columns <- function(x, column.names = NA, split = ":", resulting.columns = 3, fixed = TRUE) {
+split.columns <- function(x, column.names = NA, split = ":", 
+                         resulting.columns = 3, fixed = TRUE) {
   require(data.table)
  
   # Input validation
@@ -16,11 +24,11 @@ split.columns <- function(x, column.names = NA, split = ":", resulting.columns =
   new.columns <- data.table(row_id = seq_along(x))
   
   # Add each column one by one to ensure character types
-  for(i in 1:resulting.columns) {
-    if(i < resulting.columns) {
+  for (i in 1:resulting.columns) {
+    if (i < resulting.columns) {
       # Extract single elements
       col_values <- character(length(the.pieces))
-      for(j in seq_along(the.pieces)) {
+      for (j in seq_along(the.pieces)) {
         if (length(the.pieces[[j]]) >= i) {
           col_values[j] <- the.pieces[[j]][i]
         } else {
@@ -31,9 +39,10 @@ split.columns <- function(x, column.names = NA, split = ":", resulting.columns =
     } else {
       # Combine remaining elements for the last column
       col_values <- character(length(the.pieces))
-      for(j in seq_along(the.pieces)) {
+      for (j in seq_along(the.pieces)) {
         if (length(the.pieces[[j]]) >= i) {
-          col_values[j] <- paste(the.pieces[[j]][i:length(the.pieces[[j]])], collapse = ":")
+          col_values[j] <- paste(the.pieces[[j]][i:length(the.pieces[[j]])], 
+                                collapse = ":")
         } else {
           col_values[j] <- NA_character_
         }
@@ -45,7 +54,7 @@ split.columns <- function(x, column.names = NA, split = ":", resulting.columns =
   # Remove the temporary row_id column
   new.columns[, row_id := NULL]
  
-  if(!is.na(column.names[1])) {
+  if (!is.na(column.names[1])) {
     setnames(x = new.columns, old = names(new.columns), new = column.names)
   }
  
