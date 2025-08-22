@@ -28,7 +28,10 @@ alice_data <- grep_read(files = "sample.csv", pattern = "Alice")
 print(alice_data)
 
 # Filter rows with values greater than 15 (using regex)
-high_values <- grep_read(files = "sample.csv", pattern = "1[5-9]\\.[0-9]")
+high_values <- grep_read(
+  files = "sample.csv", 
+  pattern = "1[5-9]\\.[0-9]"
+)
 print(high_values)
 
 ## ----multiple-files-----------------------------------------------------------
@@ -46,7 +49,10 @@ dir.create("data_files", showWarnings = FALSE)
 file.copy(c("file1.csv", "file2.csv"), "data_files/")
 
 # Read all CSV files in a directory
-dir_result <- grep_read(path = "data_files", file_pattern = "\\.csv$")
+dir_result <- grep_read(
+  path = "data_files", 
+  file_pattern = "\\.csv$"
+)
 print(dir_result)
 
 ## ----line-numbers-------------------------------------------------------------
@@ -55,7 +61,10 @@ with_lines <- grep_read(files = "sample.csv", show_line_numbers = TRUE)
 print(with_lines)
 
 # Include filename when reading multiple files
-with_files <- grep_read(files = c("file1.csv", "file2.csv"), include_filename = TRUE)
+with_files <- grep_read(
+  files = c("file1.csv", "file2.csv"), 
+  include_filename = TRUE
+)
 print(with_files)
 
 # Both line numbers and filenames
@@ -69,16 +78,29 @@ print(with_both)
 ## ----only-matching------------------------------------------------------------
 # Extract only the matching parts
 # Note: Use fixed=TRUE for literal string matching
-matches <- grep_read(files = "sample.csv", pattern = "Alice", only_matching = TRUE, fixed = TRUE)
+matches <- grep_read(
+  files = "sample.csv", 
+  pattern = "Alice", 
+  only_matching = TRUE, 
+  fixed = TRUE
+)
 print(matches)
 
 # Extract numeric values (using regex)
-numbers <- grep_read(files = "sample.csv", pattern = "[0-9]+\\.[0-9]+", only_matching = TRUE)
+numbers <- grep_read(
+  files = "sample.csv", 
+  pattern = "[0-9]+\\.[0-9]+", 
+  only_matching = TRUE
+)
 print(numbers)
 
 ## ----count-only---------------------------------------------------------------
 # Count matches per file
-counts <- grep_read(files = c("file1.csv", "file2.csv"), pattern = "Charlie", count_only = TRUE)
+counts <- grep_read(
+  files = c("file1.csv", "file2.csv"), 
+  pattern = "Charlie", 
+  count_only = TRUE
+)
 print(counts)
 
 ## ----column-structure---------------------------------------------------------
@@ -108,22 +130,28 @@ print(raw_data)
 split_columns <- function(x, column_names = NA, split = ":", fixed = TRUE) {
   the_pieces <- strsplit(x = x, split = split, fixed = fixed)
   new_columns <- rbindlist(lapply(the_pieces, function(y) {
-    return(as.data.table(t(y)))
+    as.data.table(t(y))
   }))
   
   if (!is.na(column_names[1])) {
     setnames(x = new_columns, old = names(new_columns), new = column_names)
   }
-  return(new_columns)
+  new_columns
 }
 
 # Apply the splitting
-raw_data[, c("V1", "V2", "V3") := split_columns(x = get(names(raw_data)[1]))]
+raw_data[, c("V1", "V2", "V3") := split_columns(
+  x = get(names(raw_data)[1])
+)]
 print(raw_data)
 
 # Remove the original column and rename
 raw_data[, eval(names(raw_data)[1]) := NULL]
-setnames(raw_data, old = c("V1", "V2", "V3"), new = c("file", "line", "data"))
+setnames(
+  raw_data, 
+  old = c("V1", "V2", "V3"), 
+  new = c("file", "line", "data")
+)
 print(raw_data)
 
 ## ----header-handling----------------------------------------------------------
@@ -157,11 +185,20 @@ str(typed_result)
 
 ## ----pattern-notes------------------------------------------------------------
 # This will match "3894" because "." is a regex metacharacter
-regex_result <- grep_read(files = "sample.csv", pattern = "3.94", only_matching = TRUE)
+regex_result <- grep_read(
+  files = "sample.csv", 
+  pattern = "3.94", 
+  only_matching = TRUE
+)
 print(regex_result)
 
 # This will only match the literal "3.94"
-fixed_result <- grep_read(files = "sample.csv", pattern = "3.94", only_matching = TRUE, fixed = TRUE)
+fixed_result <- grep_read(
+  files = "sample.csv", 
+  pattern = "3.94", 
+  only_matching = TRUE, 
+  fixed = TRUE
+)
 print(fixed_result)
 
 ## ----error-handling-----------------------------------------------------------
@@ -186,4 +223,3 @@ citation("grepreaper")
 # Clean up temporary files
 unlink(c("sample.csv", "file1.csv", "file2.csv", "header_test.csv", "mixed_types.csv"))
 unlink("data_files", recursive = TRUE)
-
