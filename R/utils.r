@@ -103,11 +103,13 @@ build_grep_cmd <- function(pattern, files, options = "") {
 
 #' Safe system call that handles errors gracefully
 #' @param cmd Command to execute
+#' @param timeout Timeout in seconds (default: 60)
 #' @return Result of system call or empty character vector on error
 #' @export
-safe_system_call <- function(cmd) {
+safe_system_call <- function(cmd, timeout = 60) {
   tryCatch({
-    result <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
+    # Use timeout to prevent hanging
+    result <- system(cmd, intern = TRUE, ignore.stderr = TRUE, timeout = timeout)
     return(result)
   }, error = function(e) {
     return(character(0))
@@ -127,4 +129,28 @@ get_system_info <- function() {
     grep_available = check_grep_availability()$available
   )
   return(info)
+}
+
+#' Check if a file is binary
+#' @param file_path Path to the file to check
+#' @return Logical indicating if the file appears to be binary
+#' @export
+is_binary_file <- function(file_path) {
+  tryCatch({
+    # Read first 1024 bytes to check for null bytes
+    con <- file(file_path, "rb")
+    on.exit(close(con))
+    bytes <- readBin(con, "raw", n = 1024)
+    
+    # Check for null bytes (common in binary files)
+    has_nulls <- any(bytes == 0)
+    
+    # Check for high-ASCII characters (common in binary files)
+    high_ascii <- any(bytes > 127)
+    
+    # Simple heuristic: if more than 10% are nulls or high-ASCII, likely binary
+    return(has_nulls || (sum(high_ascii) / length(bytes) > 0.1))
+  }, error = function(e) {
+    return(FALSE)  # Assume text if we can't read
+  })
 }

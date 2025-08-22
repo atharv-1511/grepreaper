@@ -36,7 +36,7 @@
 #'   - With show_line_numbers=TRUE: Headers (line_number=1) are removed and lines renumbered
 #'   - Without line numbers: Headers matching column names are removed
 #'   - Empty rows and all-NA rows are automatically filtered out
-grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
+grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '.*', invert = FALSE, ignore_case = FALSE, 
                       fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                       word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE,
                       count_only = FALSE, nrows = Inf, skip = 0, 
@@ -89,6 +89,23 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   missing_files <- files[!file.exists(files)]
   if (length(missing_files) > 0) {
     stop(sprintf("The following file(s) do not exist: %s", paste(missing_files, collapse = ", ")))
+  }
+  
+  # Check file sizes and warn about very large files
+  for (file in files) {
+    file_size <- file.size(file)
+    if (file_size > 100 * 1024 * 1024) {  # 100MB
+      warning(sprintf("Large file detected: %s (%.1f MB). Processing may take a while.", 
+                     basename(file), file_size / (1024 * 1024)))
+    }
+    if (file_size == 0) {
+      warning(sprintf("Empty file detected: %s", basename(file)))
+    }
+    
+    # Check for binary files
+    if (is_binary_file(file)) {
+      warning(sprintf("Binary file detected: %s. Results may be unexpected.", basename(file)))
+    }
   }
   
   # Set default for include_filename based on number of files
@@ -168,11 +185,22 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
       # Check if the command returns any results first
       result <- safe_system_call(cmd)
       if (length(result) == 0) {
-        # No matches found, return empty data.table
+        # No matches found, return empty data.table with appropriate structure
         if (!is.null(col.names)) {
           res <- data.table::as.data.table(setNames(lapply(col.names, function(x) character(0)), col.names))
         } else {
-          res <- data.table::data.table()
+          # Try to determine column structure from header
+          tryCatch({
+            header_line <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
+            if (length(header_line) > 0) {
+              header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
+              res <- data.table::as.data.table(setNames(lapply(header_cols, function(x) character(0)), header_cols))
+            } else {
+              res <- data.table::data.table()
+            }
+          }, error = function(e) {
+            res <- data.table::data.table()
+          })
         }
         return(res)
       }
@@ -180,23 +208,37 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
       # Use fread with the command, ensuring no skip parameters
       dt <- do.call(data.table::fread, c(list(cmd = cmd, header = FALSE, nrows = nrows), args))
       
-      # --- Auto-determine column names if not provided ---
-      if (is.null(col.names) && header) {
-        # Try to read the header from the first file
-        tryCatch({
-          first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
-          if (length(first_file_header) > 0) {
-            # Use fread with explicit parameters to avoid skip issues
-            header_dt <- data.table::fread(text = first_file_header, header = TRUE, skip = 0)
-            first_file_cols <- colnames(header_dt)
-            if (length(first_file_cols) > 0) {
-              col.names <- first_file_cols
-            }
-          }
-        }, error = function(e) {
-          # If header reading fails, continue without column names
-        })
+        # --- Auto-determine column names if not provided ---
+  if (is.null(col.names) && header) {
+    # Try to read the header from the first file
+    tryCatch({
+      first_file_header <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
+      if (length(first_file_header) > 0) {
+        # Use fread with explicit parameters to avoid skip issues
+        header_dt <- data.table::fread(text = first_file_header, header = TRUE, skip = 0)
+        first_file_cols <- colnames(header_dt)
+        if (length(first_file_cols) > 0) {
+          col.names <- first_file_cols
+        }
       }
+    }, error = function(e) {
+      # If header reading fails, try alternative approach
+      tryCatch({
+        # Try reading with explicit encoding
+        con <- file(files[1], "r", encoding = "UTF-8")
+        on.exit(close(con))
+        header_line <- readLines(con, n = 1)
+        if (length(header_line) > 0) {
+          header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
+          if (length(header_cols) > 0) {
+            col.names <- header_cols
+          }
+        }
+      }, error = function(e2) {
+        # If all header reading fails, continue without column names
+      })
+    })
+  }
       
       # --- IMPROVED COLUMN SPLITTING LOGIC USING split.columns ---
       has_filename <- include_filename
