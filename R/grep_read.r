@@ -36,7 +36,7 @@
 #'   - With show_line_numbers=TRUE: Headers (line_number=1) are removed and lines renumbered
 #'   - Without line numbers: Headers matching column names are removed
 #'   - Empty rows and all-NA rows are automatically filtered out
-grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '.*', invert = FALSE, ignore_case = FALSE, 
+grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = '', invert = FALSE, ignore_case = FALSE, 
                       fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                       word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE,
                       count_only = FALSE, nrows = Inf, skip = 0, 
@@ -182,8 +182,30 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
       args <- list(...)
       args$skip <- NULL  # Remove skip parameter when using cmd
       
-      # Check if the command returns any results first
-      result <- safe_system_call(cmd)
+      # Check if we have an empty pattern - if so, read files directly
+      if (cmd == "EMPTY_PATTERN" || pattern == '') {
+        # Read files directly without grep when pattern is empty
+        if (length(files) == 1) {
+          # Single file - read directly
+          dt <- do.call(data.table::fread, c(list(files[1], header = header, nrows = nrows), args))
+        } else {
+          # Multiple files - read each separately and combine
+          all_results <- list()
+          for (file in files) {
+            file_dt <- do.call(data.table::fread, c(list(file, header = header, nrows = nrows), args))
+            all_results[[length(all_results) + 1]] <- file_dt
+          }
+          dt <- data.table::rbindlist(all_results, fill = TRUE)
+        }
+        
+        # For empty pattern reads, we need to set column names if not provided
+        if (is.null(col.names) && header && nrow(dt) > 0) {
+          col.names <- names(dt)
+        }
+      } else {
+        # Use grep for pattern matching
+        # Check if the command returns any results first
+        result <- safe_system_call(cmd)
       if (length(result) == 0) {
         # No matches found, return empty data.table with appropriate structure
         if (!is.null(col.names)) {
@@ -566,6 +588,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           }
         }
       }
+      }  # Close the else block for pattern != ''
       
       res <- dt
     }

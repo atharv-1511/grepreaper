@@ -77,8 +77,8 @@ check_grep_availability <- function() {
 #' @export
 build_grep_cmd <- function(pattern, files, options = "") {
   # Input validation
-  if (!is.character(pattern) || length(pattern) != 1 || nchar(pattern) == 0) {
-    stop("'pattern' must be a non-empty character string")
+  if (!is.character(pattern) || length(pattern) != 1) {
+    stop("'pattern' must be a single character string")
   }
   if (!is.character(files) || length(files) == 0) {
     stop("'files' must be a non-empty character vector")
@@ -89,9 +89,23 @@ build_grep_cmd <- function(pattern, files, options = "") {
   
   # Sanitize inputs to prevent command injection
   pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape dangerous characters
-  files <- normalizePath(files, mustWork = FALSE)  # Normalize file paths
+  
+  # Handle file paths more carefully to avoid hidden file issues
+  files <- sapply(files, function(file) {
+    # Use absolute paths but avoid resolving symlinks
+    if (file.exists(file)) {
+      file.path(getwd(), file)
+    } else {
+      file
+    }
+  })
   
   # Build command with proper spacing
+  # If pattern is empty, return a special indicator
+  if (nchar(pattern) == 0) {
+    return("EMPTY_PATTERN")
+  }
+  
   if (nchar(options) > 0) {
     cmd <- sprintf("grep %s %s %s", options, shQuote(pattern), paste(shQuote(files), collapse = " "))
   } else {
