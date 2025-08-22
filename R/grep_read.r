@@ -78,11 +78,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
     warning("'show_line_numbers' is ignored when 'only_matching' is TRUE")
     show_line_numbers <- FALSE
   }
-  if (!is.finite(nrows) || nrows < 0) {
-    stop("'nrows' must be a non-negative finite number")
+  if (is.na(nrows) || nrows < 0 || (!is.infinite(nrows) && !is.finite(nrows))) {
+    stop("'nrows' must be a non-negative number or Inf")
   }
-  if (!is.finite(skip) || skip < 0) {
-    stop("'skip' must be a non-negative finite number")
+  if (is.na(skip) || skip < 0 || (!is.infinite(skip) && !is.finite(skip))) {
+    stop("'skip' must be a non-negative number or Inf")
   }
   
   # Check that all files exist
