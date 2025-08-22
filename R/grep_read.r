@@ -286,7 +286,16 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
               all_results[[i]] <- file_dt
             } else {
               # No line numbers, just data
-              data_splits <- strsplit(single_result, ",", fixed = TRUE)
+              # Check if grep still included filename metadata (this can happen on some systems)
+              if (grepl(":", single_result[1], fixed = TRUE)) {
+                # Split on first colon to remove filename metadata
+                splits <- strsplit(single_result, ":", fixed = TRUE)
+                data_parts <- sapply(splits, function(x) paste(x[-1], collapse = ":"))
+              } else {
+                data_parts <- single_result
+              }
+              
+              data_splits <- strsplit(data_parts, ",", fixed = TRUE)
               max_cols <- max(sapply(data_splits, length))
               
               # Create data.table for this file
@@ -510,14 +519,28 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             # Remove skip parameter from shallow read to avoid issues
             shallow_args <- list(...)
             shallow_args$skip <- NULL
-            shallow <- do.call(data.table::fread, c(list(files[1], nrows = 5, header = header, col.names = col.names), shallow_args))
+            
+            # If we have column names, use them; otherwise try to infer from header
+            if (!is.null(col.names)) {
+              shallow <- do.call(data.table::fread, c(list(files[1], nrows = 5, header = header, col.names = col.names), shallow_args))
+            } else {
+              # Try to read header to get column names for type inference
+              header_line <- safe_system_call(sprintf("head -n 1 %s", shQuote(files[1])))
+              if (length(header_line) > 0) {
+                header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
+                shallow <- do.call(data.table::fread, c(list(files[1], nrows = 5, header = TRUE), shallow_args))
+              }
+            }
           }, error = function(e) {
             # If shallow read fails, skip type restoration
           })
           
           if (!is.null(shallow) && nrow(shallow) > 0) {
             col_types <- sapply(shallow, class)
-            for (col in names_to_set) {
+            # Determine which columns to process for type restoration
+            cols_to_process <- if (!is.null(col.names)) names_to_set else names(dt)
+            
+            for (col in cols_to_process) {
               if (col %in% names(dt) && col %in% names(col_types)) {
                 col_class <- col_types[[col]][1]
                 # Only restore type if not all NA and not header name
@@ -534,7 +557,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
                   dt[[col]] <- suppressWarnings(as.Date(dt[[col]]))
                 } else if (col_class == "POSIXct") {
                   dt[[col]] <- suppressWarnings(as.POSIXct(dt[[col]]))
-  } else {
+                } else {
                   # For all other types (including factor), convert to character to preserve data
                   dt[[col]] <- as.character(dt[[col]])
                 }
