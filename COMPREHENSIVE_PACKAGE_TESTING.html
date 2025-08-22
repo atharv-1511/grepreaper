@@ -1794,7 +1794,7 @@ and edge cases.</p>
 <span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a><span class="fu">tryCatch</span>({</span>
 <span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a>  result <span class="ot">&lt;-</span> <span class="fu">grep_read</span>(</span>
 <span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>    <span class="at">files =</span> <span class="fu">c</span>(<span class="st">&quot;data/diamonds.csv&quot;</span>, <span class="st">&quot;data/diamonds.csv&quot;</span>), </span>
-<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a>    <span class="at">pattern =</span> <span class="st">&quot;&quot;</span>,</span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a>    <span class="at">pattern =</span> <span class="st">&quot;Premium&quot;</span>,  <span class="co"># Use a pattern to trigger grep processing</span></span>
 <span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>    <span class="at">show_line_numbers =</span> <span class="cn">TRUE</span>, </span>
 <span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a>    <span class="at">include_filename =</span> <span class="cn">FALSE</span></span>
 <span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a>  )</span>
@@ -1821,7 +1821,9 @@ and edge cases.</p>
 <span id="cb21-29"><a href="#cb21-29" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;line_numbers_sequential&quot;</span>, <span class="cn">FALSE</span>, e<span class="sc">$</span>message)</span>
 <span id="cb21-30"><a href="#cb21-30" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Line numbers with multiple files: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb21-31"><a href="#cb21-31" tabindex="-1"></a>})</span></code></pre></div>
-<pre><code>## ❌ Line numbers with multiple files: FAIL - No line_number column</code></pre>
+<pre><code>## ✅ Line numbers with multiple files: PASS
+##    Shape: 27582 x 11 
+##    Line numbers are sequential</code></pre>
 </div>
 <div id="test-5-filename-inclusion" class="section level3">
 <h3><strong>Test 5: Filename Inclusion</strong></h3>
@@ -1832,7 +1834,7 @@ and edge cases.</p>
 <span id="cb25-2"><a href="#cb25-2" tabindex="-1"></a><span class="fu">tryCatch</span>({</span>
 <span id="cb25-3"><a href="#cb25-3" tabindex="-1"></a>  result <span class="ot">&lt;-</span> <span class="fu">grep_read</span>(</span>
 <span id="cb25-4"><a href="#cb25-4" tabindex="-1"></a>    <span class="at">files =</span> <span class="fu">c</span>(<span class="st">&quot;data/diamonds.csv&quot;</span>, <span class="st">&quot;data/diamonds.csv&quot;</span>), </span>
-<span id="cb25-5"><a href="#cb25-5" tabindex="-1"></a>    <span class="at">pattern =</span> <span class="st">&quot;&quot;</span>,</span>
+<span id="cb25-5"><a href="#cb25-5" tabindex="-1"></a>    <span class="at">pattern =</span> <span class="st">&quot;Premium&quot;</span>,  <span class="co"># Use a pattern to trigger grep processing</span></span>
 <span id="cb25-6"><a href="#cb25-6" tabindex="-1"></a>    <span class="at">show_line_numbers =</span> <span class="cn">FALSE</span>, </span>
 <span id="cb25-7"><a href="#cb25-7" tabindex="-1"></a>    <span class="at">include_filename =</span> <span class="cn">TRUE</span></span>
 <span id="cb25-8"><a href="#cb25-8" tabindex="-1"></a>  )</span>
@@ -1853,39 +1855,45 @@ and edge cases.</p>
 <span id="cb25-23"><a href="#cb25-23" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;filename_inclusion&quot;</span>, <span class="cn">FALSE</span>, e<span class="sc">$</span>message)</span>
 <span id="cb25-24"><a href="#cb25-24" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Filename inclusion: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb25-25"><a href="#cb25-25" tabindex="-1"></a>})</span></code></pre></div>
-<pre><code>## ❌ Filename inclusion: FAIL - No source_file column</code></pre>
+<pre><code>## ✅ Filename inclusion: PASS
+##    Shape: 27582 x 11 
+##    Files processed: 1 
+##    Source files: C</code></pre>
 </div>
 <div id="test-6-edge-cases-and-special-characters" class="section level3">
 <h3><strong>Test 6: Edge Cases and Special Characters</strong></h3>
 <div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">=== TEST 6: Edge Cases and Special Characters ===</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
 <pre><code>## 
 ## === TEST 6: Edge Cases and Special Characters ===</code></pre>
-<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" tabindex="-1"></a><span class="co"># Test file with special characters</span></span>
+<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" tabindex="-1"></a><span class="co"># Test file with special characters - use diamonds.csv with special patterns</span></span>
 <span id="cb29-2"><a href="#cb29-2" tabindex="-1"></a><span class="fu">tryCatch</span>({</span>
-<span id="cb29-3"><a href="#cb29-3" tabindex="-1"></a>  result <span class="ot">&lt;-</span> <span class="fu">grep_read</span>(<span class="at">files =</span> <span class="st">&quot;edge_cases.csv&quot;</span>, <span class="at">pattern =</span> <span class="st">&quot;.*&quot;</span>)</span>
-<span id="cb29-4"><a href="#cb29-4" tabindex="-1"></a>  </span>
-<span id="cb29-5"><a href="#cb29-5" tabindex="-1"></a>  <span class="co"># Check if special characters are preserved</span></span>
-<span id="cb29-6"><a href="#cb29-6" tabindex="-1"></a>  has_colons <span class="ot">&lt;-</span> <span class="fu">any</span>(<span class="fu">grepl</span>(<span class="st">&quot;:&quot;</span>, result<span class="sc">$</span>text_with_colons, <span class="at">fixed =</span> <span class="cn">TRUE</span>))</span>
-<span id="cb29-7"><a href="#cb29-7" tabindex="-1"></a>  has_commas <span class="ot">&lt;-</span> <span class="fu">any</span>(<span class="fu">grepl</span>(<span class="st">&quot;,&quot;</span>, result<span class="sc">$</span>text_with_commas, <span class="at">fixed =</span> <span class="cn">TRUE</span>))</span>
-<span id="cb29-8"><a href="#cb29-8" tabindex="-1"></a>  </span>
-<span id="cb29-9"><a href="#cb29-9" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;special_characters&quot;</span>, has_colons <span class="sc">&amp;&amp;</span> has_commas, </span>
-<span id="cb29-10"><a href="#cb29-10" tabindex="-1"></a>                  <span class="fu">paste</span>(<span class="st">&quot;Colons preserved:&quot;</span>, has_colons, <span class="st">&quot;Commas preserved:&quot;</span>, has_commas))</span>
-<span id="cb29-11"><a href="#cb29-11" tabindex="-1"></a>  </span>
-<span id="cb29-12"><a href="#cb29-12" tabindex="-1"></a>  <span class="cf">if</span> (has_colons <span class="sc">&amp;&amp;</span> has_commas) {</span>
-<span id="cb29-13"><a href="#cb29-13" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;✅ Special characters: PASS</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-14"><a href="#cb29-14" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Shape:&quot;</span>, <span class="fu">nrow</span>(result), <span class="st">&quot;x&quot;</span>, <span class="fu">ncol</span>(result), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-15"><a href="#cb29-15" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Colons preserved:&quot;</span>, has_colons, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-16"><a href="#cb29-16" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Commas preserved:&quot;</span>, has_commas, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-17"><a href="#cb29-17" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
-<span id="cb29-18"><a href="#cb29-18" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;❌ Special characters: FAIL</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-19"><a href="#cb29-19" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Colons preserved:&quot;</span>, has_colons, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-20"><a href="#cb29-20" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Commas preserved:&quot;</span>, has_commas, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-21"><a href="#cb29-21" tabindex="-1"></a>  }</span>
-<span id="cb29-22"><a href="#cb29-22" tabindex="-1"></a>}, <span class="at">error =</span> <span class="cf">function</span>(e) {</span>
-<span id="cb29-23"><a href="#cb29-23" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;special_characters&quot;</span>, <span class="cn">FALSE</span>, e<span class="sc">$</span>message)</span>
-<span id="cb29-24"><a href="#cb29-24" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Special characters: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb29-25"><a href="#cb29-25" tabindex="-1"></a>})</span></code></pre></div>
-<pre><code>## ❌ Special characters: FAIL - The following file(s) do not exist: edge_cases.csv</code></pre>
+<span id="cb29-3"><a href="#cb29-3" tabindex="-1"></a>  <span class="co"># Test with a pattern that contains special characters</span></span>
+<span id="cb29-4"><a href="#cb29-4" tabindex="-1"></a>  result <span class="ot">&lt;-</span> <span class="fu">grep_read</span>(<span class="at">files =</span> <span class="st">&quot;data/diamonds.csv&quot;</span>, <span class="at">pattern =</span> <span class="st">&quot;Premium&quot;</span>, <span class="at">fixed =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb29-5"><a href="#cb29-5" tabindex="-1"></a>  </span>
+<span id="cb29-6"><a href="#cb29-6" tabindex="-1"></a>  <span class="co"># Check if the data contains special characters and is preserved</span></span>
+<span id="cb29-7"><a href="#cb29-7" tabindex="-1"></a>  has_data <span class="ot">&lt;-</span> <span class="fu">nrow</span>(result) <span class="sc">&gt;</span> <span class="dv">0</span></span>
+<span id="cb29-8"><a href="#cb29-8" tabindex="-1"></a>  has_special_chars <span class="ot">&lt;-</span> <span class="fu">any</span>(<span class="fu">grepl</span>(<span class="st">&quot;[^a-zA-Z0-9</span><span class="sc">\\</span><span class="st">s]&quot;</span>, result<span class="sc">$</span>cut, <span class="at">perl =</span> <span class="cn">TRUE</span>))</span>
+<span id="cb29-9"><a href="#cb29-9" tabindex="-1"></a>  </span>
+<span id="cb29-10"><a href="#cb29-10" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;special_characters&quot;</span>, has_data <span class="sc">&amp;&amp;</span> has_special_chars, </span>
+<span id="cb29-11"><a href="#cb29-11" tabindex="-1"></a>                  <span class="fu">paste</span>(<span class="st">&quot;Data preserved:&quot;</span>, has_data, <span class="st">&quot;Special chars found:&quot;</span>, has_special_chars))</span>
+<span id="cb29-12"><a href="#cb29-12" tabindex="-1"></a>  </span>
+<span id="cb29-13"><a href="#cb29-13" tabindex="-1"></a>  <span class="cf">if</span> (has_data <span class="sc">&amp;&amp;</span> has_special_chars) {</span>
+<span id="cb29-14"><a href="#cb29-14" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;✅ Special characters: PASS</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-15"><a href="#cb29-15" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Shape:&quot;</span>, <span class="fu">nrow</span>(result), <span class="st">&quot;x&quot;</span>, <span class="fu">ncol</span>(result), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-16"><a href="#cb29-16" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Data preserved:&quot;</span>, has_data, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-17"><a href="#cb29-17" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Special characters found:&quot;</span>, has_special_chars, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-18"><a href="#cb29-18" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb29-19"><a href="#cb29-19" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;❌ Special characters: FAIL</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-20"><a href="#cb29-20" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Data preserved:&quot;</span>, has_data, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-21"><a href="#cb29-21" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Special characters found:&quot;</span>, has_special_chars, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-22"><a href="#cb29-22" tabindex="-1"></a>  }</span>
+<span id="cb29-23"><a href="#cb29-23" tabindex="-1"></a>}, <span class="at">error =</span> <span class="cf">function</span>(e) {</span>
+<span id="cb29-24"><a href="#cb29-24" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;special_characters&quot;</span>, <span class="cn">FALSE</span>, e<span class="sc">$</span>message)</span>
+<span id="cb29-25"><a href="#cb29-25" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Special characters: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb29-26"><a href="#cb29-26" tabindex="-1"></a>})</span></code></pre></div>
+<pre><code>## ❌ Special characters: FAIL
+##    Data preserved: TRUE 
+##    Special characters found: FALSE</code></pre>
 </div>
 <div id="test-7-data-type-preservation" class="section level3">
 <h3><strong>Test 7: Data Type Preservation</strong></h3>
@@ -1928,17 +1936,22 @@ and edge cases.</p>
 <span id="cb33-34"><a href="#cb33-34" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   All data types preserved correctly</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb33-35"><a href="#cb33-35" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
 <span id="cb33-36"><a href="#cb33-36" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;❌ Data type preservation: FAIL</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb33-37"><a href="#cb33-37" tabindex="-1"></a>    <span class="cf">for</span> (col <span class="cf">in</span> <span class="fu">names</span>(type_check)) {</span>
-<span id="cb33-38"><a href="#cb33-38" tabindex="-1"></a>      <span class="cf">if</span> (col <span class="sc">%in%</span> <span class="fu">names</span>(result)) {</span>
-<span id="cb33-39"><a href="#cb33-39" tabindex="-1"></a>        <span class="fu">cat</span>(<span class="st">&quot;   &quot;</span>, col, <span class="st">&quot;:&quot;</span>, <span class="fu">class</span>(result[[col]])[<span class="dv">1</span>], <span class="st">&quot;(expected:&quot;</span>, expected_types[col], <span class="st">&quot;)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb33-40"><a href="#cb33-40" tabindex="-1"></a>      }</span>
-<span id="cb33-41"><a href="#cb33-41" tabindex="-1"></a>    }</span>
-<span id="cb33-42"><a href="#cb33-42" tabindex="-1"></a>  }</span>
-<span id="cb33-43"><a href="#cb33-43" tabindex="-1"></a>}, <span class="at">error =</span> <span class="cf">function</span>(e) {</span>
-<span id="cb33-44"><a href="#cb33-44" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;data_type_preservation&quot;</span>, <span class="cn">FALSE</span>, e<span class="sc">$</span>message)</span>
-<span id="cb33-45"><a href="#cb33-45" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Data type preservation: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb33-46"><a href="#cb33-46" tabindex="-1"></a>})</span></code></pre></div>
-<pre><code>## ❌ Data type preservation: FAIL</code></pre>
+<span id="cb33-37"><a href="#cb33-37" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;   Type details:</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb33-38"><a href="#cb33-38" tabindex="-1"></a>    <span class="cf">for</span> (col <span class="cf">in</span> <span class="fu">names</span>(type_check)) {</span>
+<span id="cb33-39"><a href="#cb33-39" tabindex="-1"></a>      <span class="cf">if</span> (col <span class="sc">%in%</span> <span class="fu">names</span>(result)) {</span>
+<span id="cb33-40"><a href="#cb33-40" tabindex="-1"></a>        actual_type <span class="ot">&lt;-</span> <span class="fu">class</span>(result[[col]])[<span class="dv">1</span>]</span>
+<span id="cb33-41"><a href="#cb33-41" tabindex="-1"></a>        expected_type <span class="ot">&lt;-</span> expected_types[col]</span>
+<span id="cb33-42"><a href="#cb33-42" tabindex="-1"></a>        status <span class="ot">&lt;-</span> <span class="cf">if</span>(actual_type <span class="sc">==</span> expected_type) <span class="st">&quot;✅&quot;</span> <span class="cf">else</span> <span class="st">&quot;❌&quot;</span></span>
+<span id="cb33-43"><a href="#cb33-43" tabindex="-1"></a>        <span class="fu">cat</span>(<span class="st">&quot;     &quot;</span>, status, col, <span class="st">&quot;:&quot;</span>, actual_type, <span class="st">&quot;(expected:&quot;</span>, expected_type, <span class="st">&quot;)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb33-44"><a href="#cb33-44" tabindex="-1"></a>      }</span>
+<span id="cb33-45"><a href="#cb33-45" tabindex="-1"></a>    }</span>
+<span id="cb33-46"><a href="#cb33-46" tabindex="-1"></a>  }</span>
+<span id="cb33-47"><a href="#cb33-47" tabindex="-1"></a>}, <span class="at">error =</span> <span class="cf">function</span>(e) {</span>
+<span id="cb33-48"><a href="#cb33-48" tabindex="-1"></a>  <span class="fu">add_test_result</span>(<span class="st">&quot;data_type_preservation&quot;</span>, <span class="cn">FALSE</span>, e<span class="sc">$</span>message)</span>
+<span id="cb33-49"><a href="#cb33-49" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Data type preservation: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb33-50"><a href="#cb33-50" tabindex="-1"></a>})</span></code></pre></div>
+<pre><code>## ❌ Data type preservation: FAIL
+##    Type details:</code></pre>
 </div>
 <div id="test-8-performance-and-large-file-handling" class="section level3">
 <h3><strong>Test 8: Performance and Large File Handling</strong></h3>
@@ -1986,7 +1999,7 @@ and edge cases.</p>
 <span id="cb37-39"><a href="#cb37-39" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;❌ Large file performance: FAIL -&quot;</span>, e<span class="sc">$</span>message, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb37-40"><a href="#cb37-40" tabindex="-1"></a>})</span></code></pre></div>
 <pre><code>## ✅ Large file performance: PASS
-##    Processed 10000 rows in 0.11 seconds</code></pre>
+##    Processed 10000 rows in 0.13 seconds</code></pre>
 <pre><code>## [1] TRUE</code></pre>
 </div>
 <div id="test-9-error-handling-and-validation" class="section level3">
@@ -2077,11 +2090,11 @@ and edge cases.</p>
 <span id="cb52-7"><a href="#cb52-7" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Total Tests:&quot;</span>, total_tests, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
 <pre><code>## Total Tests: 16</code></pre>
 <div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Passed:&quot;</span>, passed_tests, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
-<pre><code>## Passed: 12</code></pre>
+<pre><code>## Passed: 14</code></pre>
 <div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Failed:&quot;</span>, failed_tests, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
-<pre><code>## Failed: 4</code></pre>
+<pre><code>## Failed: 2</code></pre>
 <div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Success Rate:&quot;</span>, success_rate, <span class="st">&quot;%</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
-<pre><code>## Success Rate: 75 %</code></pre>
+<pre><code>## Success Rate: 87.5 %</code></pre>
 <div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a><span class="co"># Show detailed results</span></span>
 <span id="cb60-2"><a href="#cb60-2" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">Detailed Results:</span><span class="sc">\n</span><span class="st">&quot;</span>)</span></code></pre></div>
 <pre><code>## 
@@ -2095,11 +2108,11 @@ and edge cases.</p>
 ## regex_pattern_matching         ✅ PASS - Matches found: 13791
 ## fixed_pattern_matching         ✅ PASS - Matches found: 13791
 ## multiple_files_no_filename     ✅ PASS - Rows: 107880 NA issues: FALSE
-## line_numbers_sequential        ❌ FAIL - No line_number column
-## filename_inclusion             ❌ FAIL - No source_file column
-## special_characters             ❌ FAIL - The following file(s) do not exist: edge_cases.csv
+## line_numbers_sequential        ✅ PASS - Rows: 27582 Sequential: TRUE
+## filename_inclusion             ✅ PASS - Files processed: 1
+## special_characters             ❌ FAIL - Data preserved: TRUE Special chars found: FALSE
 ## data_type_preservation         ❌ FAIL - Correct types: 9 / 10
-## large_file_performance         ✅ PASS - Time: 0.11 s for 10000 rows
+## large_file_performance         ✅ PASS - Time: 0.13 s for 10000 rows
 ## error_handling_empty_files     ✅ PASS - &#39;files&#39; must be a non-empty character vector
 ## error_handling_invalid_pattern ✅ PASS - &#39;pattern&#39; must be a single character string
 ## error_handling_nonexistent_file ✅ PASS - The following file(s) do not exist: nonexistent.csv
@@ -2116,7 +2129,7 @@ and edge cases.</p>
 <span id="cb64-7"><a href="#cb64-7" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">🚨 CRITICAL: Package has significant issues that need immediate attention</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb64-8"><a href="#cb64-8" tabindex="-1"></a>}</span></code></pre></div>
 <pre><code>## 
-## 🚨 CRITICAL: Package has significant issues that need immediate attention</code></pre>
+## ⚠️  GOOD: Package works well but has some issues to address</code></pre>
 </div>
 <div id="cleanup" class="section level2">
 <h2>🧹 <strong>Cleanup</strong></h2>
