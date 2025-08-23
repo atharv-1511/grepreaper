@@ -2,14 +2,14 @@
 
 **Efficient File Reading with Grep in R** - A high-performance package for fast pattern matching and data extraction from files using the power of `grep` at the command line.
 
-## 🚀 **Performance Optimized - Addressing Mentor Feedback**
+## **Performance Optimized - Addressing User Feedback**
 
 This package has been **completely optimized** to address speed and accuracy concerns:
 
-- **⚡ 2-10x faster** pattern matching for large files
-- **🎯 Enhanced accuracy** with robust CSV parsing
-- **💾 Memory efficient** streaming processing
-- **🔧 Performance monitoring** tools included
+- **2-10x faster** pattern matching for large files
+- **Enhanced accuracy** with robust CSV parsing
+- **Memory efficient** streaming processing
+- **Performance monitoring** tools included
 
 ## Overview
 
@@ -169,4 +169,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Built for speed, accuracy, and worldwide compatibility** 🌍✨
+**Built for speed, accuracy, and worldwide compatibility**

@@ -167,7 +167,7 @@ if ("source_file" %in% names(result_with_filename)) {
 ```{r test-multiple-no-metadata}
 cat("=== Test 5: Multiple Files - No Metadata (CRITICAL TEST) ===\n")
 
-# Test the scenario that was failing in mentor's feedback
+# Test the scenario that was failing in previous testing
 # Multiple files without filename or line numbers
 multiple_files <- c(test_file, test_file)
 result_multiple <- grep_read(

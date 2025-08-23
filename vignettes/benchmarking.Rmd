@@ -291,24 +291,24 @@ cat("\nWorkflow completed in", round(workflow_perf$execution_time_seconds, 3), "
 
 The optimized `grepreaper` package now provides:
 
-1. **🚀 Speed Improvements:**
+1. **Speed Improvements:**
    - **2-10x faster** pattern matching for large files
    - **Instant command generation** with early exit optimization
    - **Vectorized operations** replacing slow loops
    - **Cached grep detection** on Windows
 
-2. **🎯 Accuracy Improvements:**
+2. **Accuracy Improvements:**
    - **Robust CSV parsing** using data.table's fread
    - **Better metadata handling** without data corruption
    - **Fallback parsing** for edge cases
    - **Type preservation** during processing
 
-3. **💾 Memory Efficiency:**
+3. **Memory Efficiency:**
    - **Streaming processing** for large files
    - **Minimal memory footprint** during operations
    - **Efficient data structures** using data.table
 
-4. **🔧 Developer Tools:**
+4. **Developer Tools:**
    - **Performance monitoring** function
    - **Detailed benchmarking** capabilities
    - **Progress tracking** for long operations

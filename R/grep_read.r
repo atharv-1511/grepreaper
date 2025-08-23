@@ -526,9 +526,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           dt <- data.table::data.table()
         }
 
-        # Metadata parsing is now handled above in the main logic
-        # This section is intentionally removed to prevent conflicts
-
         # --- Auto-determine column names if not provided ---
         if (is.null(col_names) && header) {
           # Try to read the header from the first file
@@ -562,9 +559,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           })
         }
 
-        # Metadata parsing is now handled above in the main logic
-        # This section is intentionally removed to prevent conflicts
-
         # --- Set column names for data columns only ---
         if (!is.null(col_names)) {
           # For cases without metadata columns, use all columns
@@ -581,7 +575,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           data.table::setnames(dt, data_cols_indices[seq_len(length(names_to_set))],
                                names_to_set)
 
-          # --- Header row removal using mentor's data.table approach ---
+          # --- Header row removal using advanced data.table approach ---
           if (nrow(dt) > 0) {
             # Get data columns (excluding metadata columns)
             data_cols <- setdiff(names(dt), c("source_file", "line_number"))

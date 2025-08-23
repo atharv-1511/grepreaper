@@ -144,9 +144,9 @@ complex_result <- grep_read(
 print(complex_result)
 ```
 
-### Manual Column Processing (Mentor's Approach)
+### Manual Column Processing (Advanced Approach)
 
-For advanced users who need more control over column splitting, here's the approach suggested by our mentor:
+For advanced users who need more control over column splitting, here's an alternative approach:
 
 ```{r manual-splitting}
 # Get the raw grep output
@@ -162,7 +162,7 @@ print(cmd)
 raw_data <- fread(cmd = cmd)
 print(raw_data)
 
-# Manual column splitting using mentor's approach
+# Manual column splitting using advanced approach
 split_columns <- function(x, column_names = NA, split = ":", fixed = TRUE) {
   the_pieces <- strsplit(x = x, split = split, fixed = fixed)
   new_columns <- rbindlist(lapply(the_pieces, function(y) {
