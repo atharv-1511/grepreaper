@@ -64,6 +64,49 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
          "Please install it via install.packages('data.table').")
   }
 
+  # PERFORMANCE OPTIMIZATION: Early exit for show_cmd (no file processing needed)
+  if (show_cmd) {
+    # Build command and return immediately for maximum speed
+    if (is.null(files) && !is.null(path)) {
+      files <- list.files(path = path, pattern = file_pattern,
+                          full.names = TRUE, recursive = recursive)
+    }
+    if (!is.null(files)) {
+      files <- path.expand(files)
+    }
+    
+    # Quick validation
+    if (!is.character(files) || length(files) == 0) {
+      stop("'files' must be a non-empty character vector")
+    }
+    if (!is.character(pattern) || length(pattern) != 1) {
+      stop("'pattern' must be a single character string")
+    }
+    
+    # Build and return command string immediately
+    options <- character()
+    if (invert) options <- c(options, "-v")
+    if (ignore_case) options <- c(options, "-i")
+    if (fixed) options <- c(options, "-F")
+    if (recursive) options <- c(options, "-r")
+    if (word_match) options <- c(options, "-w")
+    if (show_line_numbers) options <- c(options, "-n")
+    if (only_matching) options <- c(options, "-o")
+    if (count_only) options <- c(options, "-c")
+    
+    if (include_filename || (count_only && length(files) > 1) || 
+        (show_line_numbers && length(files) > 1)) {
+      options <- c(options, "-H")
+    }
+    if ((show_line_numbers || include_filename) && length(files) == 1) {
+      options <- c(options, "-H")
+    }
+    
+    options_str <- paste(options, collapse = " ")
+    cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str)
+    return(cmd)
+  }
+
   # Set progress option
   if (show_progress) {
     options(grepreaper.show_progress = TRUE)
@@ -309,101 +352,164 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         
         # Create data.table from grep results
         if (length(result) > 0) {
-          # CRITICAL FIX: Handle metadata parsing first before CSV parsing
+          # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
           # This prevents data corruption when metadata is present
           if (show_line_numbers || include_filename) {
-            # Check if first column contains metadata (has colons)
-            first_col <- result
+            # Vectorized colon counting for format detection
+            colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
             
-            # Count colons in first line to determine format
-            colon_count <- length(gregexpr(":", first_col[1], fixed = TRUE)[[1]])
+            # Determine format based on colon count in first line
+            first_colon_count <- colon_counts[1]
             
-            if (colon_count >= 2) {
+            if (first_colon_count >= 2) {
               # filename:line:data format (when both -H and -n are used)
+              # PERFORMANCE OPTIMIZATION: Use vectorized split.columns
               split_result <- split.columns(
-                x = first_col,
+                x = result,
                 column.names = c("source_file", "line_number", "data"),
                 split = ":",
                 resulting.columns = 3,
                 fixed = TRUE
               )
               
-              # Parse the data part (data column contains CSV data)
-              data_part <- split_result$data
-              data_splits <- strsplit(data_part, ",", fixed = TRUE)
-              max_cols <- max(sapply(data_splits, length))
-              
-              # Create data.table with metadata + data columns
+              # ACCURACY IMPROVEMENT: Use data.table's fread for CSV parsing
+              # This is much more reliable than manual strsplit
               dt <- data.table::data.table()
               dt[, source_file := split_result$source_file]
               dt[, line_number := suppressWarnings(as.integer(split_result$line_number))]
               
-              # Add data columns
-              for (i in seq_len(max_cols)) {
-                col_values <- sapply(data_splits, function(x) {
-                  if (i <= length(x)) x[i] else NA_character_
-                })
-                dt[, (paste0("V", i)) := col_values]
-              }
+              # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing instead of manual loops
+              tryCatch({
+                # Parse CSV data using fread for accuracy and speed
+                csv_data <- paste(split_result$data, collapse = "\n")
+                if (nchar(csv_data) > 0) {
+                  data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                  # Add data columns efficiently
+                  for (col_name in names(data_dt)) {
+                    dt[, (col_name) := data_dt[[col_name]]]
+                  }
+                }
+              }, error = function(e) {
+                # Fallback to manual parsing if fread fails
+                data_splits <- strsplit(split_result$data, ",", fixed = TRUE)
+                max_cols <- max(sapply(data_splits, length))
+                
+                for (i in seq_len(max_cols)) {
+                  col_values <- sapply(data_splits, function(x) {
+                    if (i <= length(x)) x[i] else NA_character_
+                  })
+                  dt[, (paste0("V", i)) := col_values]
+                }
+              })
               
-            } else if (colon_count == 1) {
+            } else if (first_colon_count == 1) {
               # Check if it's filename:data or line:data
               if (include_filename) {
                 # filename:data format
                 split_result <- split.columns(
-                  x = first_col,
+                  x = result,
                   column.names = c("source_file", "data"),
                   split = ":",
                   resulting.columns = 2,
                   fixed = TRUE
                 )
                 
-                # Parse the data part
-                data_part <- split_result$data
-                data_splits <- strsplit(data_part, ",", fixed = TRUE)
-                max_cols <- max(sapply(data_splits, length))
-                
-                # Create data.table with metadata + data columns
+                # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing
                 dt <- data.table::data.table()
                 dt[, source_file := split_result$source_file]
                 
-                # Add data columns
-                for (i in seq_len(max_cols)) {
-                  col_values <- sapply(data_splits, function(x) {
-                    if (i <= length(x)) x[i] else NA_character_
-                  })
-                  dt[, (paste0("V", i)) := col_values]
-                }
+                tryCatch({
+                  csv_data <- paste(split_result$data, collapse = "\n")
+                  if (nchar(csv_data) > 0) {
+                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                    for (col_name in names(data_dt)) {
+                      dt[, (col_name) := data_dt[[col_name]]]
+                    }
+                  }
+                }, error = function(e) {
+                  # Fallback parsing
+                  data_splits <- strsplit(split_result$data, ",", fixed = TRUE)
+                  max_cols <- max(sapply(data_splits, length))
+                  
+                  for (i in seq_len(max_cols)) {
+                    col_values <- sapply(data_splits, function(x) {
+                      if (i <= length(x)) x[i] else NA_character_
+                    })
+                    dt[, (paste0("V", i)) := col_values]
+                  }
+                })
                 
               } else if (show_line_numbers) {
                 # line:data format
                 split_result <- split.columns(
-                  x = first_col,
+                  x = result,
                   column.names = c("line_number", "data"),
                   split = ":",
                   resulting.columns = 2,
                   fixed = TRUE
                 )
                 
-                # Parse the data part
-                data_part <- split_result$data
-                data_splits <- strsplit(data_part, ",", fixed = TRUE)
-                max_cols <- max(sapply(data_splits, length))
-                
-                # Create data.table with metadata + data columns
+                # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing
                 dt <- data.table::data.table()
                 dt[, line_number := suppressWarnings(as.integer(split_result$line_number))]
                 
-                # Add data columns
+                tryCatch({
+                  csv_data <- paste(split_result$data, collapse = "\n")
+                  if (nchar(csv_data) > 0) {
+                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                    for (col_name in names(data_dt)) {
+                      dt[, (col_name) := data_dt[[col_name]]]
+                    }
+                  }
+                }, error = function(e) {
+                  # Fallback parsing
+                  data_splits <- strsplit(split_result$data, ",", fixed = TRUE)
+                  max_cols <- max(sapply(data_splits, length))
+                  
+                  for (i in seq_len(max_cols)) {
+                    col_values <- sapply(data_splits, function(x) {
+                      if (i <= length(x)) x[i] else NA_character_
+                    })
+                    dt[, (paste0("V", i)) := col_values]
+                  }
+                })
+              }
+            } else {
+              # No metadata, just CSV data
+              # PERFORMANCE OPTIMIZATION: Use fread directly for best performance
+              tryCatch({
+                csv_data <- paste(result, collapse = "\n")
+                if (nchar(csv_data) > 0) {
+                  dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                } else {
+                  dt <- data.table::data.table()
+                }
+              }, error = function(e) {
+                # Fallback to manual parsing
+                data_splits <- strsplit(result, ",", fixed = TRUE)
+                max_cols <- max(sapply(data_splits, length))
+                
+                dt <- data.table::data.table()
                 for (i in seq_len(max_cols)) {
                   col_values <- sapply(data_splits, function(x) {
                     if (i <= length(x)) x[i] else NA_character_
                   })
                   dt[, (paste0("V", i)) := col_values]
                 }
+              })
+            }
+          } else {
+            # No metadata requested, just parse CSV data directly
+            # PERFORMANCE OPTIMIZATION: Use fread for maximum speed and accuracy
+            tryCatch({
+              csv_data <- paste(result, collapse = "\n")
+              if (nchar(csv_data) > 0) {
+                dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+              } else {
+                dt <- data.table::data.table()
               }
-            } else {
-              # No metadata, just CSV data
+            }, error = function(e) {
+              # Fallback parsing
               data_splits <- strsplit(result, ",", fixed = TRUE)
               max_cols <- max(sapply(data_splits, length))
               
@@ -414,19 +520,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 })
                 dt[, (paste0("V", i)) := col_values]
               }
-            }
-          } else {
-            # No metadata requested, just parse CSV data directly
-            data_splits <- strsplit(result, ",", fixed = TRUE)
-            max_cols <- max(sapply(data_splits, length))
-            
-            dt <- data.table::data.table()
-            for (i in seq_len(max_cols)) {
-              col_values <- sapply(data_splits, function(x) {
-                if (i <= length(x)) x[i] else NA_character_
-              })
-              dt[, (paste0("V", i)) := col_values]
-            }
+            })
           }
         } else {
           dt <- data.table::data.table()
