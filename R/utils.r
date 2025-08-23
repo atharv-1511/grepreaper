@@ -236,13 +236,13 @@ safe_system_call <- function(cmd, timeout = 60) {
       return(character(0))
     }
   }, error = function(e) {
-    # Log the error for debugging
+    # Log the error
     if (getOption("grepreaper.show_progress", FALSE)) {
       message("safe_system_call error: ", e$message)
     }
     return(character(0))
   }, warning = function(w) {
-    # Log the warning for debugging
+    # Log the warning
     if (getOption("grepreaper.show_progress", FALSE)) {
       message("safe_system_call warning: ", w$message)
     }

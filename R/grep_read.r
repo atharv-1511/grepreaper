@@ -64,7 +64,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
          "Please install it via install.packages('data.table').")
   }
 
-  # Set progress option for debugging
+  # Set progress option
   if (show_progress) {
     options(grepreaper.show_progress = TRUE)
   }
@@ -248,12 +248,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         # Check if the command returns any results first
         result <- safe_system_call(cmd)
         
-        # DEBUG: Show what we got from grep
+        # Show progress information if requested
         if (show_progress) {
-          cat("DEBUG: grep command:", cmd, "\n")
-          cat("DEBUG: grep returned", length(result), "lines\n")
+          cat("Grep command:", cmd, "\n")
+          cat("Grep returned", length(result), "lines\n")
           if (length(result) > 0) {
-            cat("DEBUG: First few lines from grep:\n")
+            cat("First few lines from grep:\n")
             for (i in seq_len(min(3, length(result)))) {
               cat("  ", i, ":", result[i], "\n")
             }
