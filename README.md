@@ -5,19 +5,19 @@
 
 A comprehensive R package that leverages the power of command-line `grep` to enable efficient pattern-based file reading, filtering, and analysis.
 
-## 📋 Overview
+## Overview
 
 **grepreaper** bridges the gap between R and the command-line `grep` utility, providing an intuitive interface for R users to harness grep's power without requiring command-line expertise. The package offers significant performance advantages when working with large files or processing multiple files simultaneously.
 
 ### Key Capabilities
 
-- 🔍 **Pattern Matching**: Find and count occurrences across files
-- 📊 **Data Extraction**: Read only the lines that match your criteria
-- 📁 **File Discovery**: Identify which files contain specific patterns
-- 📑 **Contextual Analysis**: View matching lines with their surrounding context
-- 🚀 **Performance**: Filter at the command-line level for substantial speed improvements
+- **Pattern Matching**: Find and count occurrences across files
+- **Data Extraction**: Read only the lines that match your criteria
+- **File Discovery**: Identify which files contain specific patterns
+- **Contextual Analysis**: View matching lines with their surrounding context
+- **Performance**: Filter at the command-line level for substantial speed improvements
 
-## 🔧 Installation
+## Installation
 
 ```r
 # Install development version from GitHub
@@ -27,7 +27,7 @@ devtools::install_github("atharv-1511/grepreaper")
 library(grepreaper)
 ```
 
-## 📦 Package Structure
+## Package Structure
 
 ```
 grepreaper/
@@ -49,7 +49,7 @@ grepreaper/
 │   └── visual_examples.html # Visual examples for screenshots
 ```
 
-## 🚀 Core Function: `grep_read()`
+## Core Function: `grep_read()`
 
 The `grepreaper` package has been streamlined to focus on a single, powerful function: `grep_read()`. This function is your all-in-one tool for reading and filtering data from files using `grep`.
 
@@ -75,7 +75,7 @@ emails <- grep_read(
 )
 ```
 
-## 🔄 Common Parameters
+## Common Parameters
 
 The `grep_read()` function supports these parameters for flexible filtering and output:
 
@@ -94,7 +94,7 @@ The `grep_read()` function supports these parameters for flexible filtering and 
 | `word_match`| Match only whole words. |
 | `show_cmd` | Display the underlying `grep` command being executed. |
 
-## 📊 Performance Comparison
+## Performance Comparison
 
 | File Size | Read + Filter in R | grepreaper | Speedup |
 |-----------|---------------------|------------|---------|
@@ -102,7 +102,7 @@ The `grep_read()` function supports these parameters for flexible filtering and 
 | 100 MB    | 8.5 seconds         | 1.5 seconds| 5.7x    |
 | 1 GB      | 89 seconds          | 11 seconds | 8.1x    |
 
-## 🖼️ Viewing Examples and Results
+## Viewing Examples and Results
 
 1. **HTML Examples**: Open `examples/visual_examples.html` in any web browser to see formatted examples with outputs.
 
@@ -142,21 +142,21 @@ The line number column is named 'line' and only appears when show_line_numbers =
 - If you lose data rows, check that your data does not exactly match the header row (rare, but possible).
 - If types are not restored, ensure your files have consistent column types and headers.
 
-## 📋 Requirements
+## Requirements
 
 - R 3.5 or higher
 - Command-line grep available on the system
 - data.table package
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 🌟 Acknowledgments
+## Acknowledgments
 
 - This package was developed as part of the Google Summer of Code (GSoC) project
 - Special thanks to mentors David Shilane and Toby Dylan Hocking for their guidance

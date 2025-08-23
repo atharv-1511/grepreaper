@@ -1,0 +1,456 @@
+---
+title: "grepreaper Package - Core Functionality Testing & Demonstration"
+author: "Package Developer"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: cosmo
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  error = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+
+# Load required packages
+library(data.table)
+library(grepreaper)
+
+# Set data.table options for better display
+options(datatable.print.nrows = 10)
+options(datatable.print.topn = 5)
+```
+
+## Package Overview
+
+The `grepreaper` package provides efficient file reading and filtering capabilities using the power of `grep` at the command line. It's designed for:
+
+- **Cross-platform compatibility** (Windows, macOS, Linux)
+- **Efficient large file processing** using `grep` and `data.table`
+- **Flexible metadata handling** (line numbers, filenames)
+- **CRAN-ready structure** for worldwide distribution
+
+## Core Functions Available
+
+```{r function-check}
+# Check all available functions
+cat("Available functions in grepreaper package:\n")
+cat("==========================================\n")
+functions <- c("grep_read", "split.columns", "check_grep_availability", 
+               "safe_system_call", "get_system_info", "build_grep_cmd", "is_binary_file")
+
+for (func in functions) {
+  if (exists(func)) {
+    cat("PASS:", func, "\n")
+  } else {
+    cat("FAIL:", func, "NOT available\n")
+  }
+}
+```
+
+## System Information & Compatibility
+
+```{r system-info}
+# Get system information
+sys_info <- get_system_info()
+cat("System Information:\n")
+cat("==================\n")
+cat("OS:", sys_info$os, "\n")
+cat("Release:", sys_info$release, "\n")
+cat("Machine:", sys_info$machine, "\n")
+cat("Grep Available:", sys_info$grep_available, "\n")
+
+# Check grep availability
+grep_status <- check_grep_availability()
+cat("\nGrep Status:\n")
+cat("============\n")
+cat("Available:", grep_status$available, "\n")
+if (!is.null(grep_status$path)) {
+  cat("Path:", grep_status$path, "\n")
+}
+```
+
+## Test Data Setup
+
+```{r data-setup}
+# Check if test data exists
+data_files <- list.files("data", full.names = TRUE)
+cat("Available test data files:\n")
+cat("==========================\n")
+for (file in data_files) {
+  file_size <- file.size(file)
+  cat(basename(file), "-", round(file_size/1024, 1), "KB\n")
+}
+
+# Use diamonds.csv for testing
+test_file <- "data/diamonds.csv"
+if (file.exists(test_file)) {
+  cat("\nPASS: Test file available:", basename(test_file), "\n")
+} else {
+  cat("\nFAIL: Test file not found:", test_file, "\n")
+}
+```
+
+## Core Functionality Tests
+
+### Test 1: Basic File Reading (Single File)
+
+```{r test-basic}
+cat("=== Test 1: Basic File Reading ===\n")
+
+# Read first 10 rows without any filtering
+result <- grep_read(files = test_file, nrows = 10)
+cat("Result shape:", nrow(result), "x", ncol(result), "\n")
+cat("Columns:", paste(names(result), collapse = ", "), "\n")
+cat("First few rows:\n")
+print(head(result, 3))
+```
+
+### Test 2: Pattern Matching with Fixed Strings
+
+```{r test-pattern}
+cat("=== Test 2: Pattern Matching ===\n")
+
+# Search for diamonds with "VS" clarity (fixed string)
+vs_diamonds <- grep_read(files = test_file, pattern = "VS", fixed = TRUE, nrows = 5)
+cat("Found", nrow(vs_diamonds), "diamonds with VS clarity\n")
+cat("Sample results:\n")
+print(head(vs_diamonds, 3))
+```
+
+### Test 3: Line Numbers (Single File)
+
+```{r test-line-numbers-single}
+cat("=== Test 3: Line Numbers (Single File) ===\n")
+
+# Read with line numbers
+result_with_lines <- grep_read(files = test_file, show_line_numbers = TRUE, nrows = 5)
+cat("Result with line numbers:\n")
+cat("Columns:", paste(names(result_with_lines), collapse = ", "), "\n")
+print(head(result_with_lines, 3))
+
+# Verify line numbers are sequential
+if ("line_number" %in% names(result_with_lines)) {
+  cat("Line numbers:", paste(result_with_lines$line_number, collapse = ", "), "\n")
+  cat("Line numbers sequential:", all(diff(result_with_lines$line_number) == 1), "\n")
+}
+```
+
+### Test 4: Filename Inclusion (Single File)
+
+```{r test-filename-single}
+cat("=== Test 4: Filename Inclusion (Single File) ===\n")
+
+# Read with filename included
+result_with_filename <- grep_read(files = test_file, include_filename = TRUE, nrows = 5)
+cat("Result with filename:\n")
+cat("Columns:", paste(names(result_with_filename), collapse = ", "), "\n")
+print(head(result_with_filename, 3))
+
+# Verify filename column
+if ("source_file" %in% names(result_with_filename)) {
+  cat("Source files:", unique(result_with_filename$source_file), "\n")
+}
+```
+
+### Test 5: Multiple Files - No Metadata (CRITICAL TEST)
+
+```{r test-multiple-no-metadata}
+cat("=== Test 5: Multiple Files - No Metadata (CRITICAL TEST) ===\n")
+
+# Test the scenario that was failing in mentor's feedback
+# Multiple files without filename or line numbers
+multiple_files <- c(test_file, test_file)
+result_multiple <- grep_read(
+  files = multiple_files, 
+  show_line_numbers = FALSE, 
+  include_filename = FALSE,
+  nrows = 10
+)
+
+cat("Multiple files result:\n")
+cat("Shape:", nrow(result_multiple), "x", ncol(result_multiple), "\n")
+cat("Columns:", paste(names(result_multiple), collapse = ", "), "\n")
+
+# CRITICAL: Check if carat column has data (not NA)
+if ("carat" %in% names(result_multiple)) {
+  carat_na_count <- sum(is.na(result_multiple$carat))
+  carat_total <- nrow(result_multiple)
+  cat("Carat column - Total rows:", carat_total, "\n")
+  cat("Carat column - NA rows:", carat_na_count, "\n")
+  cat("Carat column - Data rows:", carat_total - carat_na_count, "\n")
+  cat("Carat column - % NA:", round(carat_na_count/carat_total * 100, 1), "%\n")
+  
+  # Show sample carat values
+  cat("Sample carat values:", paste(head(result_multiple$carat, 5), collapse = ", "), "\n")
+}
+```
+
+### Test 6: Multiple Files - Line Numbers Only (CRITICAL TEST)
+
+```{r test-multiple-line-numbers}
+cat("=== Test 6: Multiple Files - Line Numbers Only (CRITICAL TEST) ===\n")
+
+# Test multiple files with line numbers but no filename
+result_multiple_lines <- grep_read(
+  files = multiple_files, 
+  show_line_numbers = TRUE, 
+  include_filename = FALSE,
+  nrows = 10
+)
+
+cat("Multiple files with line numbers:\n")
+cat("Shape:", nrow(result_multiple_lines), "x", ncol(result_multiple_lines), "\n")
+cat("Columns:", paste(names(result_multiple_lines), collapse = ", "), "\n")
+
+# Check if data is preserved
+if ("carat" %in% names(result_multiple_lines)) {
+  carat_na_count <- sum(is.na(result_multiple_lines$carat))
+  carat_total <- nrow(result_multiple_lines)
+  cat("Carat column - % NA:", round(carat_na_count/carat_total * 100, 1), "%\n")
+}
+```
+
+### Test 7: Multiple Files - Filename Only (Should Pass)
+
+```{r test-multiple-filename}
+cat("=== Test 7: Multiple Files - Filename Only (Should Pass) ===\n")
+
+# Test multiple files with filename but no line numbers
+result_multiple_filename <- grep_read(
+  files = multiple_files, 
+  show_line_numbers = FALSE, 
+  include_filename = TRUE,
+  nrows = 10
+)
+
+cat("Multiple files with filename:\n")
+cat("Shape:", nrow(result_multiple_filename), "x", ncol(result_multiple_filename), "\n")
+cat("Columns:", paste(names(result_multiple_filename), collapse = ", "), "\n")
+
+# Check if data is preserved
+if ("carat" %in% names(result_multiple_filename)) {
+  carat_na_count <- sum(is.na(result_multiple_filename$carat))
+  carat_total <- nrow(result_multiple_filename)
+  cat("Carat column - % NA:", round(carat_na_count/carat_total * 100, 1), "%\n")
+}
+```
+
+### Test 8: Multiple Files - Both Metadata (Should Pass)
+
+```{r test-multiple-both}
+cat("=== Test 8: Multiple Files - Both Metadata (Should Pass) ===\n")
+
+# Test multiple files with both filename and line numbers
+result_multiple_both <- grep_read(
+  files = multiple_files, 
+  show_line_numbers = TRUE, 
+  include_filename = TRUE,
+  nrows = 10
+)
+
+cat("Multiple files with both metadata:\n")
+cat("Shape:", nrow(result_multiple_both), "x", ncol(result_multiple_both), "\n")
+cat("Columns:", paste(names(result_multiple_both), collapse = ", "), "\n")
+
+# Check if data is preserved
+if ("carat" %in% names(result_multiple_both)) {
+  carat_na_count <- sum(is.na(result_multiple_both$carat))
+  carat_total <- nrow(result_multiple_both)
+  cat("Carat column - % NA:", round(carat_na_count/carat_total * 100, 1), "%\n")
+}
+```
+
+## Advanced Functionality Tests
+
+### Test 9: Pattern Matching with Regular Expressions
+
+```{r test-regex}
+cat("=== Test 9: Regular Expression Pattern Matching ===\n")
+
+# Search for diamonds with price starting with "3" (regex)
+price_3_diamonds <- grep_read(files = test_file, pattern = "^3", nrows = 5)
+cat("Found", nrow(price_3_diamonds), "diamonds with price starting with '3'\n")
+cat("Sample results:\n")
+print(head(price_3_diamonds, 3))
+```
+
+### Test 10: Count Only Mode
+
+```{r test-count}
+cat("=== Test 10: Count Only Mode ===\n")
+
+# Count matches for different patterns
+vs_count <- grep_read(files = test_file, pattern = "VS", fixed = TRUE, count_only = TRUE)
+cat("VS clarity diamonds count:", vs_count$count, "\n")
+
+# Count with filename
+vs_count_with_file <- grep_read(files = multiple_files, pattern = "VS", fixed = TRUE, count_only = TRUE, include_filename = TRUE)
+cat("VS clarity counts by file:\n")
+print(vs_count_with_file)
+```
+
+### Test 11: Only Matching Mode
+
+```{r test-only-matching}
+cat("=== Test 11: Only Matching Mode ===\n")
+
+# Get only the matching parts
+vs_matches <- grep_read(files = test_file, pattern = "VS", fixed = TRUE, only_matching = TRUE, nrows = 10)
+cat("Only matching parts (VS):\n")
+print(head(vs_matches, 5))
+```
+
+### Test 12: Case Insensitive Search
+
+```{r test-case-insensitive}
+cat("=== Test 12: Case Insensitive Search ===\n")
+
+# Search for "vs" (case insensitive)
+vs_insensitive <- grep_read(files = test_file, pattern = "vs", ignore_case = TRUE, nrows = 5)
+cat("Case insensitive 'vs' search - found", nrow(vs_insensitive), "rows\n")
+```
+
+### Test 13: Inverted Search
+
+```{r test-inverted}
+cat("=== Test 13: Inverted Search ===\n")
+
+# Find rows that DON'T contain "VS"
+not_vs <- grep_read(files = test_file, pattern = "VS", fixed = TRUE, invert = TRUE, nrows = 5)
+cat("Rows NOT containing 'VS' - found", nrow(not_vs), "rows\n")
+```
+
+## Utility Function Tests
+
+### Test 14: Split Columns Function
+
+```{r test-split-columns}
+cat("=== Test 14: Split Columns Function ===\n")
+
+# Test the split.columns utility function
+test_data <- c("file1:line1:data1", "file2:line2:data2", "file3:line3:data3")
+split_result <- split.columns(test_data, c("file", "line", "data"), ":", 3)
+cat("Split columns result:\n")
+cat("Shape:", nrow(split_result), "x", ncol(split_result), "\n")
+cat("Columns:", paste(names(split_result), collapse = ", "), "\n")
+print(split_result)
+```
+
+### Test 15: Build Grep Command
+
+```{r test-build-cmd}
+cat("=== Test 15: Build Grep Command ===\n")
+
+# Test command building
+cmd <- build_grep_cmd(pattern = "VS", files = test_file, options = "-H -n")
+cat("Built grep command:", cmd, "\n")
+```
+
+## Performance & Data Integrity Tests
+
+### Test 16: Large Dataset Handling
+
+```{r test-large-dataset}
+cat("=== Test 16: Large Dataset Handling ===\n")
+
+# Test with larger sample
+large_sample <- grep_read(files = test_file, nrows = 100)
+cat("Large sample result:\n")
+cat("Shape:", nrow(large_sample), "x", ncol(large_sample), "\n")
+
+# Check data types
+cat("Column types:\n")
+for (col in names(large_sample)) {
+  cat(col, ":", class(large_sample[[col]])[1], "\n")
+}
+```
+
+### Test 17: Empty Results Handling
+
+```{r test-empty-results}
+cat("=== Test 17: Empty Results Handling ===\n")
+
+# Search for something that shouldn't exist
+empty_result <- grep_read(files = test_file, pattern = "XYZ123", fixed = TRUE)
+cat("Empty result handling:\n")
+cat("Result type:", class(empty_result), "\n")
+cat("Result shape:", nrow(empty_result), "x", ncol(empty_result), "\n")
+```
+
+## Summary of Critical Tests
+
+```{r summary}
+cat("=== CRITICAL TESTS SUMMARY ===\n")
+cat("=============================\n")
+
+# Test 5: Multiple files, no metadata
+cat("Test 5 (Multiple files, no metadata): ")
+if (exists("result_multiple") && "carat" %in% names(result_multiple)) {
+  na_percent <- round(sum(is.na(result_multiple$carat))/nrow(result_multiple) * 100, 1)
+  if (na_percent < 10) {
+    cat("PASSED - Carat data preserved (", na_percent, "% NA)\n")
+  } else {
+    cat("FAILED - Carat data corrupted (", na_percent, "% NA)\n")
+  }
+} else {
+  cat("FAILED - Test not completed\n")
+}
+
+# Test 6: Multiple files, line numbers only
+cat("Test 6 (Multiple files, line numbers only): ")
+if (exists("result_multiple_lines") && "carat" %in% names(result_multiple_lines)) {
+  na_percent <- round(sum(is.na(result_multiple_lines$carat))/nrow(result_multiple_lines) * 100, 1)
+  if (na_percent < 10) {
+    cat("PASSED - Carat data preserved (", na_percent, "% NA)\n")
+  } else {
+    cat("FAILED - Carat data corrupted (", na_percent, "% NA)\n")
+  }
+} else {
+  cat("FAILED - Test not completed\n")
+}
+
+# Test 7: Multiple files, filename only
+cat("Test 7 (Multiple files, filename only): ")
+if (exists("result_multiple_filename") && "carat" %in% names(result_multiple_filename)) {
+  na_percent <- round(sum(is.na(result_multiple_filename$carat))/nrow(result_multiple_filename) * 100, 1)
+  if (na_percent < 10) {
+    cat("PASSED - Carat data preserved (", na_percent, "% NA)\n")
+  } else {
+    cat("FAILED - Carat data corrupted (", na_percent, "% NA)\n")
+  }
+} else {
+  cat("FAILED - Test not completed\n")
+}
+
+# Test 8: Multiple files, both metadata
+cat("Test 8 (Multiple files, both metadata): ")
+if (exists("result_multiple_both") && "carat" %in% names(result_multiple_both)) {
+  na_percent <- round(sum(is.na(result_multiple_both$carat))/nrow(result_multiple_both) * 100, 1)
+  if (na_percent < 10) {
+    cat("PASSED - Carat data preserved (", na_percent, "% NA)\n")
+  } else {
+    cat("FAILED - Carat data corrupted (", na_percent, "% NA)\n")
+  }
+} else {
+  cat("FAILED - Test not completed\n")
+}
+```
+
+## Package Status
+
+### **Issues Resolved:**
+1. **Metadata Parsing Conflicts**: Fixed the complex parsing logic that was corrupting CSV data
+2. **Multiple Files Handling**: Resolved issues with `carat` variable becoming NA
+3. **Cross-Platform Compatibility**: Package works on Windows, macOS, and Linux
+4. **Relative Paths**: All hardcoded paths removed for worldwide distribution
+5. **Data.table Bindings**: All global variable bindings properly declared

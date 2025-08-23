@@ -33,8 +33,9 @@
 #'   - only_matching=TRUE: Single 'match' column with matched substrings
 #'   - count_only=TRUE: 'source_file' and 'count' columns
 #'   - show_cmd=TRUE: Character string containing the grep command
-#' @importFrom data.table fread setnames := .N .SD
+#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder ":=" .N .SD .SDcols
 #' @importFrom stats setNames
+#' @importFrom utils globalVariables
 #' @export
 #' @note When searching for literal strings (not regex patterns), set
 #'   `fixed = TRUE` to avoid regex interpretation. For example, searching for
@@ -46,6 +47,10 @@
 #'     lines renumbered
 #'   - Without line numbers: Headers matching column names are removed
 #'   - Empty rows and all-NA rows are automatically filtered out
+
+# Fix data.table global variable bindings
+utils::globalVariables(c("line_number", "source_file", ":=", ".SD", ".N", ".SDcols"))
+
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      pattern = "", invert = FALSE, ignore_case = FALSE,
                      fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
@@ -57,6 +62,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   if (!requireNamespace("data.table", quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed. ",
          "Please install it via install.packages('data.table').")
+  }
+
+  # Set progress option for debugging
+  if (show_progress) {
+    options(grepreaper.show_progress = TRUE)
   }
 
   # --- File selection and validation ---
@@ -140,13 +150,20 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   if (show_line_numbers) options <- c(options, "-n")
   if (only_matching) options <- c(options, "-o")
   if (count_only) options <- c(options, "-c")
+  
+  # CRITICAL FIX: Always add -H when we need metadata
   # `-H` prints the filename. It's needed for include_filename, but also for
   # count_only when multiple files are provided, to distinguish counts.
-  if (include_filename) {
+  # Also, when we have multiple files and want line numbers, we need -H to get
+  # filename:line:data format
+  if (include_filename || (count_only && length(files) > 1) || 
+      (show_line_numbers && length(files) > 1)) {
     options <- c(options, "-H")
-  } else if (count_only && length(files) > 1) {
-    # Only add -H for count_only when we have multiple files and need to
-    # distinguish counts
+  }
+
+  # CRITICAL FIX: Always add -H for single files when we need metadata
+  # This ensures consistent behavior for line numbers and filename inclusion
+  if ((show_line_numbers || include_filename) && length(files) == 1) {
     options <- c(options, "-H")
   }
 
@@ -230,6 +247,19 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         # Use grep for pattern matching
         # Check if the command returns any results first
         result <- safe_system_call(cmd)
+        
+        # DEBUG: Show what we got from grep
+        if (show_progress) {
+          cat("DEBUG: grep command:", cmd, "\n")
+          cat("DEBUG: grep returned", length(result), "lines\n")
+          if (length(result) > 0) {
+            cat("DEBUG: First few lines from grep:\n")
+            for (i in seq_len(min(3, length(result)))) {
+              cat("  ", i, ":", result[i], "\n")
+            }
+          }
+        }
+        
         if (length(result) == 0) {
           # No matches found, return empty data.table with appropriate structure
           if (!is.null(col_names)) {
@@ -238,35 +268,178 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             )
           } else {
             # Try to determine column structure from header
-            tryCatch({
-              header_line <- safe_system_call(sprintf("head -n 1 %s",
-                                                    shQuote(files[1])))
+            result_dt <- tryCatch({
+              header_line <- readLines(files[1], n = 1)
               if (length(header_line) > 0) {
                 header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
-                result_dt <- data.table::as.data.table(
+                data.table::as.data.table(
                   setNames(lapply(header_cols, function(x) character(0)),
                           header_cols)
                 )
               } else {
-                result_dt <- data.table::data.table()
+                data.table::data.table()
               }
             }, error = function(e) {
-              result_dt <- data.table::data.table()
+              data.table::data.table()
             })
           }
+          
+          # CRITICAL FIX: Add metadata columns even for empty results
+          # This ensures the test for special characters doesn't fail
+          if (show_line_numbers || include_filename) {
+            # Create empty metadata columns
+            if (show_line_numbers) {
+              result_dt[, line_number := integer(0)]
+            }
+            if (include_filename) {
+              result_dt[, source_file := character(0)]
+            }
+          }
+          
           return(result_dt)
         }
 
-        # Use fread with the command, ensuring no skip parameters
-        dt <- do.call(data.table::fread, c(list(cmd = cmd, header = FALSE,
-                                               nrows = nrows), args))
+        # CRITICAL FIX: When using grep with pattern matching, we need to ensure
+        # that the result lines are properly parsed to extract metadata
+        # The grep output format depends on the options used:
+        # - With -H and -n: filename:line:data
+        # - With -H only: filename:data  
+        # - With -n only: line:data
+        # - Without flags: just data
+        
+        # Create data.table from grep results
+        if (length(result) > 0) {
+          # CRITICAL FIX: Handle metadata parsing first before CSV parsing
+          # This prevents data corruption when metadata is present
+          if (show_line_numbers || include_filename) {
+            # Check if first column contains metadata (has colons)
+            first_col <- result
+            
+            # Count colons in first line to determine format
+            colon_count <- length(gregexpr(":", first_col[1], fixed = TRUE)[[1]])
+            
+            if (colon_count >= 2) {
+              # filename:line:data format (when both -H and -n are used)
+              split_result <- split.columns(
+                x = first_col,
+                column.names = c("source_file", "line_number", "data"),
+                split = ":",
+                resulting.columns = 3,
+                fixed = TRUE
+              )
+              
+              # Parse the data part (data column contains CSV data)
+              data_part <- split_result$data
+              data_splits <- strsplit(data_part, ",", fixed = TRUE)
+              max_cols <- max(sapply(data_splits, length))
+              
+              # Create data.table with metadata + data columns
+              dt <- data.table::data.table()
+              dt[, source_file := split_result$source_file]
+              dt[, line_number := suppressWarnings(as.integer(split_result$line_number))]
+              
+              # Add data columns
+              for (i in seq_len(max_cols)) {
+                col_values <- sapply(data_splits, function(x) {
+                  if (i <= length(x)) x[i] else NA_character_
+                })
+                dt[, (paste0("V", i)) := col_values]
+              }
+              
+            } else if (colon_count == 1) {
+              # Check if it's filename:data or line:data
+              if (include_filename) {
+                # filename:data format
+                split_result <- split.columns(
+                  x = first_col,
+                  column.names = c("source_file", "data"),
+                  split = ":",
+                  resulting.columns = 2,
+                  fixed = TRUE
+                )
+                
+                # Parse the data part
+                data_part <- split_result$data
+                data_splits <- strsplit(data_part, ",", fixed = TRUE)
+                max_cols <- max(sapply(data_splits, length))
+                
+                # Create data.table with metadata + data columns
+                dt <- data.table::data.table()
+                dt[, source_file := split_result$source_file]
+                
+                # Add data columns
+                for (i in seq_len(max_cols)) {
+                  col_values <- sapply(data_splits, function(x) {
+                    if (i <= length(x)) x[i] else NA_character_
+                  })
+                  dt[, (paste0("V", i)) := col_values]
+                }
+                
+              } else if (show_line_numbers) {
+                # line:data format
+                split_result <- split.columns(
+                  x = first_col,
+                  column.names = c("line_number", "data"),
+                  split = ":",
+                  resulting.columns = 2,
+                  fixed = TRUE
+                )
+                
+                # Parse the data part
+                data_part <- split_result$data
+                data_splits <- strsplit(data_part, ",", fixed = TRUE)
+                max_cols <- max(sapply(data_splits, length))
+                
+                # Create data.table with metadata + data columns
+                dt <- data.table::data.table()
+                dt[, line_number := suppressWarnings(as.integer(split_result$line_number))]
+                
+                # Add data columns
+                for (i in seq_len(max_cols)) {
+                  col_values <- sapply(data_splits, function(x) {
+                    if (i <= length(x)) x[i] else NA_character_
+                  })
+                  dt[, (paste0("V", i)) := col_values]
+                }
+              }
+            } else {
+              # No metadata, just CSV data
+              data_splits <- strsplit(result, ",", fixed = TRUE)
+              max_cols <- max(sapply(data_splits, length))
+              
+              dt <- data.table::data.table()
+              for (i in seq_len(max_cols)) {
+                col_values <- sapply(data_splits, function(x) {
+                  if (i <= length(x)) x[i] else NA_character_
+                })
+                dt[, (paste0("V", i)) := col_values]
+              }
+            }
+          } else {
+            # No metadata requested, just parse CSV data directly
+            data_splits <- strsplit(result, ",", fixed = TRUE)
+            max_cols <- max(sapply(data_splits, length))
+            
+            dt <- data.table::data.table()
+            for (i in seq_len(max_cols)) {
+              col_values <- sapply(data_splits, function(x) {
+                if (i <= length(x)) x[i] else NA_character_
+              })
+              dt[, (paste0("V", i)) := col_values]
+            }
+          }
+        } else {
+          dt <- data.table::data.table()
+        }
+
+        # Metadata parsing is now handled above in the main logic
+        # This section is intentionally removed to prevent conflicts
 
         # --- Auto-determine column names if not provided ---
         if (is.null(col_names) && header) {
           # Try to read the header from the first file
           tryCatch({
-            first_file_header <- safe_system_call(sprintf("head -n 1 %s",
-                                                        shQuote(files[1])))
+            first_file_header <- readLines(files[1], n = 1)
             if (length(first_file_header) > 0) {
               # Use fread with explicit parameters to avoid skip issues
               header_dt <- data.table::fread(text = first_file_header,
@@ -295,186 +468,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           })
         }
 
-        # --- IMPROVED COLUMN SPLITTING LOGIC USING split.columns ---
-        has_filename <- include_filename
-        has_line_num <- show_line_numbers
-
-        # Check if we're processing multiple files - grep automatically includes
-        # filenames when processing multiple files, even without -H flag
-        multiple_files <- length(files) > 1
-
-        # If we have multiple files and don't want filenames, we need a different
-        # approach because grep automatically includes filenames for multiple files
-        if (multiple_files && !has_filename) {
-          # Process each file separately and combine results to avoid metadata
-          # issues
-          all_results <- list()
-
-          for (i in seq_along(files)) {
-            # Build command for single file
-            single_cmd <- build_grep_cmd(pattern = pattern, files = files[i],
-                                       options = options_str)
-
-            # Read single file
-            single_result <- safe_system_call(single_cmd)
-            if (length(single_result) > 0) {
-              # Parse the single file result
-              if (has_line_num) {
-                # Split on first colon: line:data
-                splits <- strsplit(single_result, ":", fixed = TRUE)
-                line_numbers <- sapply(splits, function(x) as.integer(x[1]))
-                data_parts <- sapply(splits, function(x) {
-                  paste(x[-1], collapse = ":")
-                })
-
-                # Split data on commas
-                data_splits <- strsplit(data_parts, ",", fixed = TRUE)
-                max_cols <- max(sapply(data_splits, length))
-
-                # Create data.table for this file
-                file_dt <- data.table::data.table()
-                file_dt[, line_number := line_numbers]
-
-                for (j in seq_len(max_cols)) {
-                  col_values <- sapply(data_splits, function(x) {
-                    if (j <= length(x)) x[j] else NA_character_
-                  })
-                  file_dt[, (paste0("V", j)) := col_values]
-                }
-
-                all_results[[i]] <- file_dt
-              } else {
-                # No line numbers, just data
-                # Check if grep still included filename metadata (this can happen
-                # on some systems)
-                if (grepl(":", single_result[1], fixed = TRUE)) {
-                  # Split on first colon to remove filename metadata
-                  splits <- strsplit(single_result, ":", fixed = TRUE)
-                  data_parts <- sapply(splits, function(x) {
-                    paste(x[-1], collapse = ":")
-                  })
-                } else {
-                  data_parts <- single_result
-                }
-
-                data_splits <- strsplit(data_parts, ",", fixed = TRUE)
-                max_cols <- max(sapply(data_splits, length))
-
-                # Create data.table for this file
-                file_dt <- data.table::data.table()
-
-                for (j in seq_len(max_cols)) {
-                  col_values <- sapply(data_splits, function(x) {
-                    if (j <= length(x)) x[j] else NA_character_
-                  })
-                  file_dt[, (paste0("V", j)) := col_values]
-                }
-
-                all_results[[i]] <- file_dt
-              }
-            }
-          }
-
-          # Combine all results
-          if (length(all_results) > 0) {
-            dt <- data.table::rbindlist(all_results, fill = TRUE)
-
-            # If we have line numbers, we need to renumber them sequentially
-            # across all files
-            if (has_line_num && "line_number" %in% names(dt)) {
-              dt[, line_number := seq_len(.N)]
-            }
-          }
-        } else {
-          # Original logic for single files or when filenames are wanted
-          # Only apply column splitting if we actually have metadata columns to
-          # extract AND the first column contains the expected metadata format
-          if (nrow(dt) > 0 && (has_filename || has_line_num || multiple_files)) {
-            # Get the first column which contains filename:line:data or line:data
-            first_col <- dt[[1]]
-
-            # Check if the first column contains colons (indicating metadata)
-            if (grepl(":", first_col[1], fixed = TRUE)) {
-              # Determine what metadata we actually have
-              # If multiple files, we always have filename metadata
-              actual_has_filename <- has_filename || multiple_files
-              actual_has_line_num <- has_line_num
-
-              # Determine the correct number of resulting columns
-              resulting_columns <- as.integer(actual_has_filename) +
-                                  as.integer(actual_has_line_num) + 1
-
-              # Use the improved split.columns function
-              if (actual_has_filename && actual_has_line_num) {
-                # filename:line:data format
-                column_names <- c("source_file", "line_number", "V1")
-              } else if (actual_has_filename) {
-                # filename:data format
-                column_names <- c("source_file", "V1")
-              } else if (actual_has_line_num) {
-                # line:data format
-                column_names <- c("line_number", "V1")
-              } else {
-                # No metadata, just data
-                column_names <- "V1"
-              }
-
-              # Split the first column using the improved function
-              split_result <- split.columns(
-                x = first_col,
-                column.names = column_names,
-                split = ":",
-                resulting.columns = resulting_columns,
-                fixed = TRUE
-              )
-
-              # Create new data.table with metadata columns
-              new_dt <- data.table::data.table()
-
-              # Add metadata columns
-              if (actual_has_filename) {
-                new_dt[, source_file := split_result$source_file]
-              }
-              if (actual_has_line_num) {
-                new_dt[, line_number := suppressWarnings(as.integer(
-                  split_result$line_number))]
-              }
-
-              # Add data columns - the V1 column contains the CSV data that
-              # needs to be split further
-              data_part <- split_result$V1
-              max_cols <- 0  # Initialize max_cols to prevent undefined variable error
-
-              # Split the data part on commas to get individual columns
-              if (length(data_part) > 0) {
-                # Split each row on commas
-                data_splits <- strsplit(data_part, ",", fixed = TRUE)
-
-                # Find the maximum number of columns
-                max_cols <- max(sapply(data_splits, length))
-
-                # Create columns for each data field
-                for (i in seq_len(max_cols)) {
-                  col_values <- sapply(data_splits, function(x) {
-                    if (i <= length(x)) x[i] else NA_character_
-                  })
-                  new_dt[, (paste0("V", i)) := col_values]
-                }
-              }
-
-              # Copy remaining columns from original data.table (if any)
-              data_cols <- names(dt)[-1]
-              if (length(data_cols) > 0) {
-                for (i in seq_along(data_cols)) {
-                  new_dt[, (paste0("V", i + max_cols)) := dt[[data_cols[i]]]]
-                }
-              }
-
-              # Replace original data.table
-              dt <- new_dt
-            }
-          }
-        }
+        # Metadata parsing is now handled above in the main logic
+        # This section is intentionally removed to prevent conflicts
 
         # --- Set column names for data columns only ---
         if (!is.null(col_names)) {
@@ -598,18 +593,17 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      col.names = col_names),
                 shallow_args
               ))
-            } else {
-              # Try to read header to get column names for type inference
-              header_line <- safe_system_call(sprintf("head -n 1 %s",
-                                                    shQuote(files[1])))
-              if (length(header_line) > 0) {
-                header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
-                shallow <- do.call(data.table::fread, c(
-                  list(files[1], nrows = 5, header = TRUE),
-                  shallow_args
-                ))
-              }
-            }
+                         } else {
+               # Try to read header to get column names for type inference
+               header_line <- readLines(files[1], n = 1)
+               if (length(header_line) > 0) {
+                 header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
+                 shallow <- do.call(data.table::fread, c(
+                   list(files[1], nrows = 5, header = TRUE),
+                   shallow_args
+                 ))
+               }
+             }
           }, error = function(e) {
             # If shallow read fails, skip type restoration
           })

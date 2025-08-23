@@ -1,3 +1,6 @@
+# Fix data.table global variable bindings
+utils::globalVariables(c(":=", ".SD", ".N", ".SDcols"))
+
 #' Split columns based on a delimiter
 #' @param x Character vector to split
 #' @param column.names Names for the resulting columns
@@ -8,7 +11,9 @@
 #' @export
 split.columns <- function(x, column.names = NA, split = ":", 
                          resulting.columns = 3, fixed = TRUE) {
-  require(data.table)
+  if (!requireNamespace("data.table", quietly = TRUE)) {
+    stop("The 'data.table' package is required but not installed.")
+  }
  
   # Input validation
   if (!is.character(x) || length(x) == 0) {
@@ -66,16 +71,56 @@ split.columns <- function(x, column.names = NA, split = ":",
 #' @export
 check_grep_availability <- function() {
   available <- FALSE
+  grep_path <- NULL
+  
   tryCatch({
-    result <- system("grep --version", intern = TRUE, ignore.stderr = TRUE)
-    available <- length(result) > 0
+    # On Windows, check for Git's grep first
+    if (Sys.info()["sysname"] == "Windows") {
+      git_grep_paths <- c(
+        "C:/Program Files/Git/usr/bin/grep.exe",
+        "C:/Program Files (x86)/Git/usr/bin/grep.exe",
+        "C:/Git/usr/bin/grep.exe"
+      )
+      
+      for (git_grep_path in git_grep_paths) {
+        if (file.exists(git_grep_path)) {
+          # Test if it works
+          result <- system(paste0("\"", git_grep_path, "\" --version"), 
+                          intern = TRUE, ignore.stderr = TRUE)
+          if (length(result) > 0) {
+            available <- TRUE
+            grep_path <- git_grep_path
+            break
+          }
+        }
+      }
+      
+      # If no Git grep, try WSL
+      if (!available) {
+        wsl_result <- tryCatch({
+          system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
+        }, error = function(e) NULL, warning = function(w) NULL)
+        
+        if (!is.null(wsl_result) && length(wsl_result) > 0) {
+          available <- TRUE
+          grep_path <- "wsl grep"
+        }
+      }
+    } else {
+      # On Unix-like systems, use standard grep
+      result <- system("grep --version", intern = TRUE, ignore.stderr = TRUE)
+      available <- length(result) > 0
+      if (available) {
+        grep_path <- "grep"
+      }
+    }
   }, error = function(e) {
     available <- FALSE
   }, warning = function(w) {
     available <- FALSE
   })
   
-  return(list(available = available))
+  return(list(available = available, path = grep_path))
 }
 
 #' Build grep command string
@@ -126,17 +171,81 @@ build_grep_cmd <- function(pattern, files, options = "") {
 
 #' Safe system call that handles errors gracefully
 #' @param cmd Command to execute
-#' @param timeout Timeout in seconds (default: 60)
+#' @param timeout Timeout in seconds (default: 60) - Note: not used in Windows
 #' @return Result of system call or empty character vector on error
 #' @export
 safe_system_call <- function(cmd, timeout = 60) {
   tryCatch({
-    # Use timeout to prevent hanging
-    result <- system(cmd, intern = TRUE, ignore.stderr = TRUE, timeout = timeout)
-    return(result)
+    # On Windows, system() doesn't support timeout parameter
+    # Use intern = TRUE to capture output, ignore.stderr = TRUE to suppress errors
+    
+    # For grep commands on Windows, automatically use Git's grep if available
+    if (grepl("^grep\\s+", cmd) && Sys.info()["sysname"] == "Windows") {
+      # Check multiple possible Git grep locations
+      git_grep_paths <- c(
+        "C:/Program Files/Git/usr/bin/grep.exe",
+        "C:/Program Files (x86)/Git/usr/bin/grep.exe",
+        "C:/Git/usr/bin/grep.exe"
+      )
+      
+      git_grep_found <- FALSE
+      for (git_grep_path in git_grep_paths) {
+        if (file.exists(git_grep_path)) {
+          # Replace grep with full path
+          cmd <- sub("^grep\\s+", paste0("\"", git_grep_path, "\" "), cmd)
+          if (getOption("grepreaper.show_progress", FALSE)) {
+            message("Using Git's grep: ", cmd)
+          }
+          git_grep_found <- TRUE
+          break
+        }
+      }
+      
+      # If no Git grep found, try to use Windows Subsystem for Linux (WSL) grep
+      if (!git_grep_found) {
+        wsl_result <- tryCatch({
+          system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
+        }, error = function(e) NULL, warning = function(w) NULL)
+        
+        if (!is.null(wsl_result) && length(wsl_result) > 0) {
+          cmd <- sub("^grep\\s+", "wsl grep ", cmd)
+          if (getOption("grepreaper.show_progress", FALSE)) {
+            message("Using WSL grep: ", cmd)
+          }
+          git_grep_found <- TRUE
+        }
+      }
+      
+      # If still no grep found, return empty result with warning
+      if (!git_grep_found) {
+        warning("No grep command available on Windows. Please install Git for Windows or WSL.")
+        return(character(0))
+      }
+    }
+    
+    result <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
+    
+    # Check if the command executed successfully
+    if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
+      return(result)
+    } else {
+      # Command failed, return empty result
+      if (getOption("grepreaper.show_progress", FALSE)) {
+        message("Command failed with status: ", attr(result, "status"))
+      }
+      return(character(0))
+    }
   }, error = function(e) {
+    # Log the error for debugging
+    if (getOption("grepreaper.show_progress", FALSE)) {
+      message("safe_system_call error: ", e$message)
+    }
     return(character(0))
   }, warning = function(w) {
+    # Log the warning for debugging
+    if (getOption("grepreaper.show_progress", FALSE)) {
+      message("safe_system_call warning: ", w$message)
+    }
     return(character(0))
   })
 }
