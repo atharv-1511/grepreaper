@@ -11,7 +11,7 @@ output:
     highlight: tango
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, eval=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
   warning = FALSE,
@@ -41,7 +41,7 @@ The `grepreaper` package provides efficient file reading and filtering capabilit
 
 ## Core Functions Available
 
-```{r function-check}
+```{r function-check, eval=FALSE}
 # Check all available functions
 cat("Available functions in grepreaper package:\n")
 cat("==========================================\n")
@@ -59,7 +59,7 @@ for (func in functions) {
 
 ## System Information & Compatibility
 
-```{r system-info}
+```{r system-info, eval=FALSE}
 # Get system information
 sys_info <- get_system_info()
 cat("System Information:\n")
