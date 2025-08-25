@@ -165,9 +165,9 @@ build_grep_cmd <- function(pattern, files, options = "") {
   })
   
   # Build command with proper spacing
-  # If pattern is empty, return a special indicator
+  # If pattern is empty, use a pattern that matches all lines
   if (nchar(pattern) == 0) {
-    return("EMPTY_PATTERN")
+    pattern <- ".*"
   }
   
   if (nchar(options) > 0) {

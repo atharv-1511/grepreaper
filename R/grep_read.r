@@ -144,10 +144,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     warning("'only_matching' is ignored when 'show_line_numbers' is TRUE")
     show_line_numbers <- FALSE
   }
-  if (is.na(nrows) || nrows < 0 || (!is.infinite(nrows) && !is.finite(nrows))) {
+  # Validate nrows parameter - allow large positive numbers
+  if (is.na(nrows) || nrows < 0 || is.infinite(nrows)) {
     stop("'nrows' must be a non-negative number or Inf")
   }
-  if (is.na(skip) || skip < 0 || (!is.infinite(skip) && !is.finite(skip))) {
+  # Validate skip parameter - allow large positive numbers  
+  if (is.na(skip) || skip < 0 || is.infinite(skip)) {
     stop("'skip' must be a non-negative number or Inf")
   }
 

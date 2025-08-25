@@ -1,0 +1,131 @@
+---
+title: "grepreaper Tests"
+author: "David Shilane"
+date: "2025-08-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Package Basics
+
+```{r }
+library(data.table)
+library(grepreaper)
+```
+
+## File Reading {.tabset}
+
+### Basics
+
+
+
+```{r error=TRUE}
+grep_read(files = "data/diamonds.csv")
+```
+
+```{r error=TRUE}
+grep_read(files = "data/diamonds.csv")
+```
+
+```{r error=TRUE}
+grep_read(files = "data/diamonds.csv", nrows = 10^6)
+```
+
+```{r error=TRUE}
+grep_read(files = "data/diamonds.csv", nrows = 10^6, pattern = "")
+```
+
+```{r error=TRUE}
+grep_read(files = "data/diamonds.csv", nrows = 10^6, pattern = "VS1")
+```
+
+
+```{r error=TRUE}
+grep_read(files = "data/diamonds.csv", show_cmd = T, nrows = 10^6, pattern = "VS1")
+```
+
+Please review and revise.
+
+### Multiple Files {.tabset}
+
+#### No File Name, No Line Number -- NEEDS REVISION
+
+```{r error=TRUE}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = F)
+```
+
+```{r error=TRUE}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = F, nrows = 10^6)
+```
+
+```{r error=TRUE}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = F, nrows = 10^6, pattern = "")
+```
+
+```{r error=TRUE}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = F, nrows = 10^6, pattern = "VS1")
+dat[1:2,]
+```
+
+#### No File Name, But Line Number Included -- NEEDS REVISION
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = F)
+```
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = F, nrows = 10^6)
+```
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = F, nrows = 10^6, pattern = "")
+```
+
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = F, nrows = 10^6, pattern = "VS1")
+dat[1:2,]
+```
+
+
+#### Includes File Name, But No Line Number Included -- PASSES TEST
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = T)
+```
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = T, nrows = 10^6)
+```
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = T, nrows = 10^6, pattern = "")
+```
+
+```{r error=T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = F, include_filename = T, nrows = 10^6, pattern = "VS1")
+dat[1:2,]
+```
+
+#### Includes File Name and Line Number -- PASSES TEST
+
+```{r error = T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = T)
+```
+
+```{r error = T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = T, nrows = 10^6)
+```
+
+```{r error = T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = T, nrows = 10^6, pattern = "")
+```
+
+```{r error = T}
+dat <- grep_read(files = c("data/diamonds.csv", "data/diamonds.csv"), show_line_numbers = T, include_filename = T, nrows = 10^6, pattern = "VS1")
+dat[1:2,]
+```
