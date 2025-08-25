@@ -25,3 +25,6 @@ Thumbs.db
 *.swp
 *~
 *.bak
+
+# Mentor feedback files (local only)
+Feedback/
