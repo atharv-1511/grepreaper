@@ -266,8 +266,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       args <- list(...)
       args$skip <- NULL  # Remove skip parameter when using cmd
 
-      # Check if we have an empty pattern - if so, read files directly
-      if (cmd == "EMPTY_PATTERN" || pattern == "") {
+             # Check if we have an empty pattern - if so, read files directly
+       if (pattern == "") {
         # Read files directly without grep when pattern is empty
         if (length(files) == 1) {
           # Single file - read directly
