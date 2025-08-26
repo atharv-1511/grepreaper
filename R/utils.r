@@ -1,5 +1,5 @@
 # Fix data.table global variable bindings
-utils::globalVariables(c(":=", ".SD", ".N"))
+utils::globalVariables(c(":=", ".N", "V1", "V2", "V3"))
 
 #' Split columns based on a delimiter
 #' @param x Character vector to split
@@ -315,6 +315,10 @@ is_binary_file <- function(file_path) {
     high_ascii <- any(bytes > 127)
     
     # Simple heuristic: if more than 10% are nulls or high-ASCII, likely binary
+    # Handle empty files (length 0) to avoid division by zero
+    if (length(bytes) == 0) {
+      return(FALSE)  # Empty files are considered text
+    }
     return(has_nulls || (sum(high_ascii) / length(bytes) > 0.1))
   }, error = function(e) {
     return(FALSE)  # Assume text if we can't read

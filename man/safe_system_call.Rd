@@ -4,12 +4,12 @@
 \alias{safe_system_call}
 \title{Execute a shell command safely}
 \usage{
-safe_system_call(cmd, intern = TRUE)
+safe_system_call(cmd, timeout = 60)
 }
 \arguments{
 \item{cmd}{Command to execute.}
 
-\item{intern}{Logical; if TRUE, capture the output.}
+\item{timeout}{Timeout in seconds (default: 60) - Note: not used in Windows.}
 }
 \value{
 Command output as character vector, or empty vector on error.

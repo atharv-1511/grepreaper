@@ -22,7 +22,7 @@
 #' @param nrows Integer; maximum number of rows to read.
 #' @param skip Integer; number of rows to skip.
 #' @param header Logical; if TRUE, treat first row as header.
-#' @param col_names Character vector of column names.
+#' @param col.names Character vector of column names.
 #' @param include_filename Logical; if TRUE, include source filename as a column.
 #' @param show_progress Logical; if TRUE, show progress indicators.
 #' @param ... Additional arguments passed to fread.
@@ -33,8 +33,8 @@
 #'   - only_matching=TRUE: Single 'match' column with matched substrings
 #'   - count_only=TRUE: 'source_file' and 'count' columns
 #'   - show_cmd=TRUE: Character string containing the grep command
-#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder ":=" .N .SD
-#' @importFrom stats setNames
+#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder ":=" .N
+#' @importFrom stats setNames rowSums
 #' @importFrom utils globalVariables
 #' @export
 #' @note When searching for literal strings (not regex patterns), set
@@ -49,14 +49,14 @@
 #'   - Empty rows and all-NA rows are automatically filtered out
 
 # Fix data.table global variable bindings
-utils::globalVariables(c("line_number", "source_file", ":=", ".SD", ".N"))
+utils::globalVariables(c("line_number", "source_file", ":=", ".N"))
 
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      pattern = "", invert = FALSE, ignore_case = FALSE,
                      fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                      word_match = FALSE, show_line_numbers = FALSE,
                      only_matching = FALSE, count_only = FALSE, nrows = Inf,
-                     skip = 0, header = TRUE, col_names = NULL,
+                     skip = 0, header = TRUE, col.names = NULL,
                      include_filename = NULL, show_progress = FALSE, ...) {
   # Ensure data.table is available
   if (!requireNamespace("data.table", quietly = TRUE)) {
@@ -144,12 +144,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     warning("'only_matching' is ignored when 'show_line_numbers' is TRUE")
     show_line_numbers <- FALSE
   }
-  # Validate nrows parameter - allow large positive numbers
-  if (is.na(nrows) || nrows < 0 || is.infinite(nrows)) {
+  # Validate nrows parameter - allow large positive numbers and Inf
+  if (is.na(nrows) || nrows < 0) {
     stop("'nrows' must be a non-negative number or Inf")
   }
-  # Validate skip parameter - allow large positive numbers  
-  if (is.na(skip) || skip < 0 || is.infinite(skip)) {
+  # Validate skip parameter - allow large positive numbers and Inf
+  if (is.na(skip) || skip < 0) {
     stop("'skip' must be a non-negative number or Inf")
   }
 
@@ -173,10 +173,18 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       warning(sprintf("Empty file detected: %s", basename(file)))
     }
 
-    # Check for binary files
-    if (is_binary_file(file)) {
-      warning(sprintf("Binary file detected: %s. Results may be unexpected.",
-                     basename(file)))
+    # Check for binary files - skip for empty files to avoid errors
+    if (file_size > 0) {
+      binary_check <- tryCatch({
+        is_binary_file(file)
+      }, error = function(e) {
+        FALSE  # Assume text if check fails
+      })
+      
+      if (!is.na(binary_check) && binary_check) {
+        warning(sprintf("Binary file detected: %s. Results may be unexpected.",
+                       basename(file)))
+      }
     }
   }
 
@@ -285,8 +293,49 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         }
 
         # For empty pattern reads, we need to set column names if not provided
-        if (is.null(col_names) && header && nrow(dt) > 0) {
-          col_names <- names(dt)
+        if (is.null(col.names) && header && nrow(dt) > 0) {
+          col.names <- names(dt)
+        }
+        
+                # CRITICAL FIX: Add metadata columns for direct file reads when requested
+        # For multiple files, we always need source_file for proper line number grouping
+        needs_source_file <- (!is.null(include_filename) && include_filename) || 
+                           (length(files) > 1 && show_line_numbers)
+        
+        if (show_line_numbers || needs_source_file) {
+          # Add source file column first (needed for line number grouping)
+          if (needs_source_file) {
+            if (length(files) == 1) {
+              if (nrow(dt) > 0) {
+                dt[, source_file := basename(files[1])]
+              } else {
+                dt[, source_file := character(0)]
+              }
+            } else {
+              # For multiple files, we need to track which file each row came from
+              if (nrow(dt) > 0) {
+                file_indices <- rep(seq_along(files), sapply(all_results, nrow))
+                dt[, source_file := basename(files[file_indices])]
+              } else {
+                dt[, source_file := character(0)]
+              }
+            }
+          }
+          
+          # Add line numbers after source_file is available
+          if (show_line_numbers) {
+            if (nrow(dt) > 0) {
+              if (length(files) == 1) {
+                dt[, line_number := seq_len(.N)]
+              } else {
+                # For multiple files, restart line numbers from 1 for each file
+                # Create sequential line numbers that restart for each file
+                dt[, line_number := rep(seq_len(max(sapply(all_results, nrow))), length(files))]
+              }
+            } else {
+              dt[, line_number := integer(0)]
+            }
+          }
         }
       } else {
         # Use grep for pattern matching
@@ -307,18 +356,18 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         
         if (length(result) == 0) {
           # No matches found, return empty data.table with appropriate structure
-          if (!is.null(col_names)) {
-            result_dt <- data.table::as.data.table(
-              setNames(lapply(col_names, function(x) character(0)), col_names)
-            )
-          } else {
+                  if (!is.null(col.names)) {
+          result_dt <- data.table::as.data.table(
+            stats::setNames(lapply(col.names, function(x) character(0)), col.names)
+          )
+        } else {
             # Try to determine column structure from header
             result_dt <- tryCatch({
               header_line <- readLines(files[1], n = 1)
               if (length(header_line) > 0) {
                 header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
                 data.table::as.data.table(
-                  setNames(lapply(header_cols, function(x) character(0)),
+                  stats::setNames(lapply(header_cols, function(x) character(0)),
                           header_cols)
                 )
               } else {
@@ -529,7 +578,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         }
 
         # --- Auto-determine column names if not provided ---
-        if (is.null(col_names) && header) {
+        if (is.null(col.names) && header) {
           # Try to read the header from the first file
           tryCatch({
             first_file_header <- readLines(files[1], n = 1)
@@ -539,7 +588,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                                            header = TRUE, skip = 0)
               first_file_cols <- colnames(header_dt)
               if (length(first_file_cols) > 0) {
-                col_names <- first_file_cols
+                col.names <- first_file_cols
               }
             }
           }, error = function(e) {
@@ -552,7 +601,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               if (length(header_line) > 0) {
                 header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
                 if (length(header_cols) > 0) {
-                  col_names <- header_cols
+                  col.names <- header_cols
                 }
               }
             }, error = function(e2) {
@@ -562,7 +611,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         }
 
         # --- Set column names for data columns only ---
-        if (!is.null(col_names)) {
+        if (!is.null(col.names)) {
           # For cases without metadata columns, use all columns
           if (!any(c("source_file", "line_number") %in% names(dt))) {
             data_cols_indices <- seq_len(ncol(dt))
@@ -571,7 +620,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                                                         "line_number"))
           }
 
-          names_to_set <- col_names[seq_len(min(length(col_names),
+          names_to_set <- col.names[seq_len(min(length(col.names),
                                                length(data_cols_indices)))]
 
           data.table::setnames(dt, data_cols_indices[seq_len(length(names_to_set))],
@@ -582,12 +631,13 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             # Get data columns (excluding metadata columns)
             data_cols <- setdiff(names(dt), c("source_file", "line_number"))
 
-            # First pass: Remove header rows
-            header_rows <- dt[, {
-              row_vals <- as.character(.SD)
-              # Check if row matches column names exactly
-              any(sapply(row_vals, function(x) x %in% names_to_set))
-            }, by = seq_len(nrow(dt))]
+            # First pass: Remove header rows - use safer approach without .SD
+            # Check each row individually to avoid .SD issues
+            header_rows <- logical(nrow(dt))
+            for (i in seq_len(nrow(dt))) {
+              row_vals <- as.character(dt[i, data_cols, with = FALSE])
+              header_rows[i] <- any(row_vals %in% names_to_set)
+            }
 
             # Remove header rows
             if (any(header_rows$V1)) {
@@ -606,10 +656,16 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               }
             }
 
-            # Remove any remaining all-NA rows
+            # CRITICAL FIX: Prevent infinite loops by using proper data.table syntax
+            # Remove any remaining all-NA rows using safe approach
             if (nrow(dt) > 0) {
-              dt <- dt[!dt[, all(is.na(.SD))]
+              # Use rowSums approach to avoid .SD issues
+              na_counts <- rowSums(is.na(dt))
+              if (any(na_counts == ncol(dt))) {
+                dt <- dt[na_counts < ncol(dt)]
+              }
             }
+          }
 
           # Handle source files and line numbers
           if ("source_file" %in% names(dt)) {
@@ -649,11 +705,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             dt[, line_number := as.integer(line_number)]
           }
 
-          # Remove all-NA rows using data.table approach
+          # Remove all-NA rows using safe data.table approach
           if (nrow(dt) > 0) {
-            na_row_idx <- dt[, which(rowMeans(is.na(.SD)) < 1)]
-            if (length(na_row_idx) > 0) {
-              dt <- dt[na_row_idx]
+            # Use rowSums for better performance and safety
+            na_counts <- rowSums(is.na(dt))
+            if (any(na_counts == ncol(dt))) {
+              dt <- dt[na_counts < ncol(dt)]
             }
           }
 
@@ -661,72 +718,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           for (col in names_to_set) {
             if (col %in% names(dt)) {
               dt[dt[[col]] == "", (col) := NA_character_]
-            }
-          }
-        }
-
-        # --- Type restoration: only after header/NA row removal ---
-        if (nrow(dt) > 0) {
-          # Create a shallow copy of the first file to determine column types
-          shallow <- NULL
-          tryCatch({
-            # Remove skip parameter from shallow read to avoid issues
-            shallow_args <- list(...)
-            shallow_args$skip <- NULL
-
-            # If we have column names, use them; otherwise try to infer from
-            # header
-            if (!is.null(col_names)) {
-              shallow <- do.call(data.table::fread, c(
-                list(files[1], nrows = 5, header = header,
-                     col.names = col_names),
-                shallow_args
-              ))
-                         } else {
-               # Try to read header to get column names for type inference
-               header_line <- readLines(files[1], n = 1)
-               if (length(header_line) > 0) {
-                 header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
-                 shallow <- do.call(data.table::fread, c(
-                   list(files[1], nrows = 5, header = TRUE),
-                   shallow_args
-                 ))
-               }
-             }
-          }, error = function(e) {
-            # If shallow read fails, skip type restoration
-          })
-
-          if (!is.null(shallow) && nrow(shallow) > 0) {
-            col_types <- sapply(shallow, class)
-            # Determine which columns to process for type restoration
-            cols_to_process <- if (!is.null(col_names)) names_to_set else
-                              names(dt)
-
-            for (col in cols_to_process) {
-              if (col %in% names(dt) && col %in% names(col_types)) {
-                col_class <- col_types[[col]][1]
-                # Only restore type if not all NA and not header name
-                if (col_class == "numeric" || col_class == "integer") {
-                  # Handle factor conversion properly
-                  if (is.factor(dt[[col]])) {
-                    dt[[col]] <- suppressWarnings(as.numeric(as.character(
-                      dt[[col]])))
-                  } else {
-                    dt[[col]] <- suppressWarnings(as.numeric(dt[[col]]))
-                  }
-                } else if (col_class == "logical") {
-                  dt[[col]] <- suppressWarnings(as.logical(dt[[col]]))
-                } else if (col_class == "Date") {
-                  dt[[col]] <- suppressWarnings(as.Date(dt[[col]]))
-                } else if (col_class == "POSIXct") {
-                  dt[[col]] <- suppressWarnings(as.POSIXct(dt[[col]]))
-                } else {
-                  # For all other types (including factor), convert to character
-                  # to preserve data
-                  dt[[col]] <- as.character(dt[[col]])
-                }
-              }
             }
           }
         }

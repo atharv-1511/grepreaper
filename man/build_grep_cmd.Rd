@@ -4,7 +4,7 @@
 \alias{build_grep_cmd}
 \title{Build a grep command with proper escaping and options}
 \usage{
-build_grep_cmd(pattern, files, options = "", count = FALSE)
+build_grep_cmd(pattern, files, options = "")
 }
 \arguments{
 \item{pattern}{Pattern to search for.}
@@ -12,8 +12,6 @@ build_grep_cmd(pattern, files, options = "", count = FALSE)
 \item{files}{Character vector of file paths.}
 
 \item{options}{Character string of grep options.}
-
-\item{count}{Logical; if TRUE, add the -c option to count matches.}
 }
 \value{
 A character string with the grep command.
