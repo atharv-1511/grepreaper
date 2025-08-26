@@ -1,5 +1,5 @@
 # Fix data.table global variable bindings
-utils::globalVariables(c(":=", ".SD", ".N", ".SDcols"))
+utils::globalVariables(c(":=", ".SD", ".N"))
 
 #' Split columns based on a delimiter
 #' @param x Character vector to split

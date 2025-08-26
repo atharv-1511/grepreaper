@@ -9,8 +9,8 @@ Description: Provides a suite of functions for efficient file reading and patter
     aggregating data from multiple files, searching with regular expressions or fixed patterns,
     and handling large files efficiently.
 License: MIT + file LICENSE
-Depends: R (>= 3.5.0)
-Imports: data.table, utils, stats
+Depends: R (>= 4.0.0)
+Imports: data.table (>= 1.12.0), utils, stats
 Suggests: testthat, knitr, rmarkdown, microbenchmark
 Encoding: UTF-8
 LazyData: true

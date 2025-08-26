@@ -33,7 +33,7 @@
 #'   - only_matching=TRUE: Single 'match' column with matched substrings
 #'   - count_only=TRUE: 'source_file' and 'count' columns
 #'   - show_cmd=TRUE: Character string containing the grep command
-#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder ":=" .N .SD .SDcols
+#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder ":=" .N .SD
 #' @importFrom stats setNames
 #' @importFrom utils globalVariables
 #' @export
@@ -49,7 +49,7 @@
 #'   - Empty rows and all-NA rows are automatically filtered out
 
 # Fix data.table global variable bindings
-utils::globalVariables(c("line_number", "source_file", ":=", ".SD", ".N", ".SDcols"))
+utils::globalVariables(c("line_number", "source_file", ":=", ".SD", ".N"))
 
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      pattern = "", invert = FALSE, ignore_case = FALSE,
