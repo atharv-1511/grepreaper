@@ -266,8 +266,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       args <- list(...)
       args$skip <- NULL  # Remove skip parameter when using cmd
 
-             # Check if we have an empty pattern - if so, read files directly
-       if (pattern == "") {
+        # Check if we have an empty pattern - if so, read files directly
+        if (pattern == "") {
         # Read files directly without grep when pattern is empty
         if (length(files) == 1) {
           # Single file - read directly
@@ -587,7 +587,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               row_vals <- as.character(.SD)
               # Check if row matches column names exactly
               any(sapply(row_vals, function(x) x %in% names_to_set))
-            }, by = seq_len(nrow(dt)), .SDcols = data_cols]
+            }, by = seq_len(nrow(dt))]
 
             # Remove header rows
             if (any(header_rows$V1)) {
@@ -608,7 +608,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
 
             # Remove any remaining all-NA rows
             if (nrow(dt) > 0) {
-              dt <- dt[!dt[, all(is.na(.SD)), .SDcols = data_cols]]
+              dt <- dt[!dt[, all(is.na(.SD))]
             }
           }
 
