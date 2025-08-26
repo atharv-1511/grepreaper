@@ -610,7 +610,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             if (nrow(dt) > 0) {
               dt <- dt[!dt[, all(is.na(.SD))]
             }
-          }
 
           # Handle source files and line numbers
           if ("source_file" %in% names(dt)) {
