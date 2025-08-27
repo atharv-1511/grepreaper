@@ -329,8 +329,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 dt[, line_number := seq_len(.N)]
               } else {
                 # For multiple files, restart line numbers from 1 for each file
-                # Create sequential line numbers that restart for each file
-                dt[, line_number := rep(seq_len(max(sapply(all_results, nrow))), length(files))]
+                # Use proper grouping to ensure line numbers restart for each file
+                dt[, line_number := seq_len(.N), by = source_file]
               }
             } else {
               dt[, line_number := integer(0)]
@@ -426,8 +426,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               # ACCURACY IMPROVEMENT: Use data.table's fread for CSV parsing
               # This is much more reliable than manual strsplit
               dt <- data.table::data.table()
-              dt[, source_file := split_result$source_file]
-              dt[, line_number := suppressWarnings(as.integer(split_result$line_number))]
+              dt[, source_file := split_result[["source_file"]]]
+              dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
               
               # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing instead of manual loops
               tryCatch({
@@ -467,7 +467,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 
                 # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing
                 dt <- data.table::data.table()
-                dt[, source_file := split_result$source_file]
+                dt[, source_file := split_result[["source_file"]]]
                 
                 tryCatch({
                   csv_data <- paste(split_result$data, collapse = "\n")
@@ -502,7 +502,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 
                 # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing
                 dt <- data.table::data.table()
-                dt[, line_number := suppressWarnings(as.integer(split_result$line_number))]
+                dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
                 
                 tryCatch({
                   csv_data <- paste(split_result$data, collapse = "\n")
@@ -640,8 +640,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             }
 
             # Remove header rows
-            if (any(header_rows$V1)) {
-              dt <- dt[!header_rows$V1]
+            if (any(header_rows)) {
+              dt <- dt[!header_rows]
             }
 
             # Second pass: Convert data types
