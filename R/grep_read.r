@@ -94,11 +94,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     if (only_matching) options <- c(options, "-o")
     if (count_only) options <- c(options, "-c")
     
-    if (include_filename || (count_only && length(files) > 1) || 
+    if (!is.null(include_filename) && include_filename || (count_only && length(files) > 1) || 
         (show_line_numbers && length(files) > 1)) {
       options <- c(options, "-H")
     }
-    if ((show_line_numbers || include_filename) && length(files) == 1) {
+    if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
       options <- c(options, "-H")
     }
     
@@ -189,8 +189,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   }
 
   # Set default for include_filename based on number of files
+  # Only set to TRUE if explicitly requested or if we need it for metadata
   if (is.null(include_filename)) {
-    include_filename <- length(files) > 1 && !recursive
+    include_filename <- FALSE  # Default to FALSE to avoid interference with pattern matching
   }
 
   # --- Build grep command options ---
@@ -432,7 +433,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing instead of manual loops
               tryCatch({
                 # Parse CSV data using fread for accuracy and speed
-                csv_data <- paste(split_result$data, collapse = "\n")
+                csv_data <- paste(split_result[["data"]], collapse = "\n")
                 if (nchar(csv_data) > 0) {
                   data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
                   # Add data columns efficiently
@@ -442,7 +443,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 }
               }, error = function(e) {
                 # Fallback to manual parsing if fread fails
-                data_splits <- strsplit(split_result$data, ",", fixed = TRUE)
+                data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
                 max_cols <- max(sapply(data_splits, length))
                 
                 for (i in seq_len(max_cols)) {
@@ -470,7 +471,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 dt[, source_file := split_result[["source_file"]]]
                 
                 tryCatch({
-                  csv_data <- paste(split_result$data, collapse = "\n")
+                  csv_data <- paste(split_result[["data"]], collapse = "\n")
                   if (nchar(csv_data) > 0) {
                     data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
                     for (col_name in names(data_dt)) {
@@ -479,7 +480,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                   }
                 }, error = function(e) {
                   # Fallback parsing
-                  data_splits <- strsplit(split_result$data, ",", fixed = TRUE)
+                  data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
                   max_cols <- max(sapply(data_splits, length))
                   
                   for (i in seq_len(max_cols)) {
@@ -505,7 +506,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
                 
                 tryCatch({
-                  csv_data <- paste(split_result$data, collapse = "\n")
+                  csv_data <- paste(split_result[["data"]], collapse = "\n")
                   if (nchar(csv_data) > 0) {
                     data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
                     for (col_name in names(data_dt)) {
@@ -514,7 +515,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                   }
                 }, error = function(e) {
                   # Fallback parsing
-                  data_splits <- strsplit(split_result$data, ",", fixed = TRUE)
+                  data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
                   max_cols <- max(sapply(data_splits, length))
                   
                   for (i in seq_len(max_cols)) {
