@@ -343,15 +343,17 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         # Check if the command returns any results first
         result <- safe_system_call(cmd)
         
-        # Show progress information if requested
-        if (show_progress) {
-          cat("Grep command:", cmd, "\n")
-          cat("Grep returned", length(result), "lines\n")
+        # DEBUGGING: Always show grep command and result for troubleshooting
+        if (getOption("grepreaper.debug", FALSE) || show_progress) {
+          cat("DEBUG: Grep command:", cmd, "\n")
+          cat("DEBUG: Grep returned", length(result), "lines\n")
           if (length(result) > 0) {
-            cat("First few lines from grep:\n")
+            cat("DEBUG: First few lines from grep:\n")
             for (i in seq_len(min(3, length(result)))) {
               cat("  ", i, ":", result[i], "\n")
             }
+          } else {
+            cat("DEBUG: No results from grep - command may have failed\n")
           }
         }
         

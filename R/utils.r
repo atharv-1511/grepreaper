@@ -158,7 +158,7 @@ build_grep_cmd <- function(pattern, files, options = "") {
   files <- sapply(files, function(file) {
     # Use absolute paths but avoid resolving symlinks
     if (file.exists(file)) {
-      file.path(getwd(), file)
+      normalizePath(file, winslash = "/", mustWork = FALSE)
     } else {
       file
     }
@@ -260,7 +260,8 @@ safe_system_call <- function(cmd, timeout = 60) {
     result <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
     
     # Check if the command executed successfully
-    if (attr(result, "status") == 0 || is.null(attr(result, "status"))) {
+    # system() with intern=TRUE doesn't always set status attribute
+    if (is.null(attr(result, "status")) || attr(result, "status") == 0) {
       return(result)
     } else {
       # Command failed, return empty result
