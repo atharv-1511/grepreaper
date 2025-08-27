@@ -7,7 +7,7 @@
 #'   `path` argument. Passed to `list.files`.
 #' @param pattern Pattern to search for within files (passed to grep).
 #' @param invert Logical; if TRUE, return non-matching lines.
-#' @param ignore_case Logical; if TRUE, perform case-insensitive matching.
+#' @param ignore_case Logical; if TRUE, perform case-insensitive matching (default: TRUE).
 #' @param fixed Logical; if TRUE, pattern is a fixed string, not a regular
 #'   expression.
 #' @param show_cmd Logical; if TRUE, return the grep command string instead of
@@ -52,7 +52,7 @@
 utils::globalVariables(c("line_number", "source_file", ":=", ".N"))
 
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
-                     pattern = "", invert = FALSE, ignore_case = FALSE,
+                     pattern = "", invert = FALSE, ignore_case = TRUE,
                      fixed = FALSE, show_cmd = FALSE, recursive = FALSE,
                      word_match = FALSE, show_line_numbers = FALSE,
                      only_matching = FALSE, count_only = FALSE, nrows = Inf,
