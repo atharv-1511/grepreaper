@@ -127,8 +127,9 @@ cat("Now test the package and compare results with manual approach\n\n")
 cat("Test 3.1: Package approach for 'Good' cut diamonds\n")
 cat("--------------------------------------------------\n")
 cat("Step 1: Use grepreaper to find 'Good' cut diamonds\n")
+cat("Testing with column-specific search in 'cut' column:\n")
 package_good_cut <- grep_read(files = "data/diamonds.csv",
-                              pattern = "Good", nrows = 100)
+                              pattern = "Good", nrows = 100, search_column = "cut")
 cat("Package result - Rows:", nrow(package_good_cut), "Columns:", ncol(package_good_cut), "\n")
 cat("Package column names:", paste(names(package_good_cut), collapse=", "), "\n")
 
@@ -146,8 +147,9 @@ if (nrow(package_good_cut) > 0) {
 cat("\nTest 3.2: Package approach for 'VS1' clarity diamonds\n")
 cat("------------------------------------------------------\n")
 cat("Step 1: Use grepreaper to find 'VS1' clarity diamonds\n")
+cat("Testing with column-specific search in 'clarity' column:\n")
 package_vs1_clarity <- grep_read(files = "data/diamonds.csv",
-                                 pattern = "VS1", nrows = 100)
+                                 pattern = "VS1", nrows = 100, search_column = "clarity")
 cat("Package result - Rows:", nrow(package_vs1_clarity), "Columns:", ncol(package_vs1_clarity), "\n")
 cat("Package column names:", paste(names(package_vs1_clarity), collapse=", "), "\n")
 
@@ -195,6 +197,25 @@ cat("\nStep 2: Check if command looks correct\n")
 cat("Command contains 'VS1':", grepl("VS1", cmd_output), "\n")
 cat("Command contains file path:", grepl("diamonds.csv", cmd_output), "\n")
 cat("Command contains grep:", grepl("grep", cmd_output), "\n")
+
+# Test 3.5: Column-specific vs Global pattern matching comparison
+cat("\nTest 3.5: Column-specific vs Global pattern matching comparison\n")
+cat("----------------------------------------------------------------\n")
+cat("Step 1: Test global pattern matching (old behavior)\n")
+package_good_global <- grep_read(files = "data/diamonds.csv",
+                                 pattern = "Good", nrows = 100)
+cat("Global pattern matching - Rows:", nrow(package_good_global), "\n")
+
+cat("\nStep 2: Test column-specific pattern matching (new behavior)\n")
+package_good_column <- grep_read(files = "data/diamonds.csv",
+                                 pattern = "Good", nrows = 100, search_column = "cut")
+cat("Column-specific pattern matching - Rows:", nrow(package_good_column), "\n")
+
+cat("\nStep 3: Compare results\n")
+cat("Global search found:", nrow(package_good_global), "rows\n")
+cat("Column-specific search found:", nrow(package_good_column), "rows\n")
+cat("Manual approach found:", nrow(good_cut_diamonds), "rows\n")
+cat("Column-specific matches manual?", nrow(package_good_column) == nrow(good_cut_diamonds), "\n")
 
 cat("PHASE 3 COMPLETE\n\n")
 
