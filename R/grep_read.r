@@ -24,6 +24,7 @@
 #' @param header Logical; if TRUE, treat first row as header.
 #' @param col.names Character vector of column names.
 #' @param include_filename Logical; if TRUE, include source filename as a column.
+#' @param search_column Character; name of specific column to search in (if NULL, searches all columns).
 #' @param show_progress Logical; if TRUE, show progress indicators.
 #' @param ... Additional arguments passed to fread.
 #' @return A data.table with different structures based on the options:
@@ -57,7 +58,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      word_match = FALSE, show_line_numbers = FALSE,
                      only_matching = FALSE, count_only = FALSE, nrows = Inf,
                      skip = 0, header = TRUE, col.names = NULL,
-                     include_filename = NULL, show_progress = FALSE, ...) {
+                     include_filename = NULL, search_column = NULL, show_progress = FALSE, ...) {
   # Ensure data.table is available
   if (!requireNamespace("data.table", quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed. ",
@@ -339,9 +340,62 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           }
         }
       } else {
-        # Use grep for pattern matching
-        # Check if the command returns any results first
-        result <- safe_system_call(cmd)
+        # CRITICAL FIX: Implement column-specific pattern matching for better accuracy
+        if (!is.null(search_column) && pattern != "") {
+          # Column-specific search: modify pattern to be more specific
+          # This helps reduce false positives from searching all columns
+          cat("DEBUG: Using column-specific search in column:", search_column, "\n")
+          
+          # For column-specific search, we'll use a more targeted approach
+          # Read the file and filter by the specific column
+          tryCatch({
+            file_data <- data.table::fread(files[1], nrows = nrows, header = header)
+            
+            if (search_column %in% names(file_data)) {
+              # Filter by the specific column
+              col_data <- file_data[[search_column]]
+              if (is.character(col_data) || is.factor(col_data)) {
+                # CRITICAL FIX: Use exact matching for column-specific search
+                # This ensures we only match the exact value in the specified column
+                # Not pattern matches within data values
+                if (fixed) {
+                  # For fixed strings, use exact equality
+                  matching_rows <- col_data == pattern
+                } else {
+                  # For regex patterns, use exact column value matching
+                  # This prevents matching patterns within data values
+                  matching_rows <- col_data == pattern
+                }
+                
+                if (invert) matching_rows <- !matching_rows
+                
+                if (sum(matching_rows) > 0) {
+                  result_data <- file_data[matching_rows]
+                  # Convert to character for consistency with grep output
+                  result <- apply(result_data, 1, function(row) paste(row, collapse = ","))
+                } else {
+                  result <- character(0)
+                }
+              } else {
+                # Non-character column, fall back to grep
+                cat("DEBUG: Column", search_column, "is not character/factor, using grep\n")
+                result <- safe_system_call(cmd)
+              }
+            } else {
+              # Column not found, fall back to grep
+              cat("DEBUG: Column", search_column, "not found, using grep\n")
+              result <- safe_system_call(cmd)
+            }
+          }, error = function(e) {
+            # Error reading file, fall back to grep
+            cat("DEBUG: Error reading file for column-specific search, using grep\n")
+            result <- safe_system_call(cmd)
+          })
+        } else {
+          # Use grep for pattern matching (original behavior)
+          # Check if the command returns any results first
+          result <- safe_system_call(cmd)
+        }
         
         # DEBUGGING: Always show grep command and result for troubleshooting
         if (getOption("grepreaper.debug", FALSE) || show_progress) {
@@ -359,11 +413,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         
         if (length(result) == 0) {
           # No matches found, return empty data.table with appropriate structure
-                  if (!is.null(col.names)) {
-          result_dt <- data.table::as.data.table(
-            stats::setNames(lapply(col.names, function(x) character(0)), col.names)
-          )
-        } else {
+          if (!is.null(col.names)) {
+            result_dt <- data.table::as.data.table(
+              stats::setNames(lapply(col.names, function(x) character(0)), col.names)
+            )
+          } else {
             # Try to determine column structure from header
             result_dt <- tryCatch({
               header_line <- readLines(files[1], n = 1)
