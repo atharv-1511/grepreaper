@@ -25,9 +25,9 @@ cat("========================================\n")
 # 1. Install required packages
 cat("1. Installing required packages...\n")
 cat("   Installing data.table...\n")
-install.packages("data.table")
+install.packages("data.table", repos = "https://cran.rstudio.com/")
 cat("   Installing devtools...\n")
-install.packages("devtools")
+install.packages("devtools", repos = "https://cran.rstudio.com/")
 
 # 2. Install grepreaper from GitHub
 cat("2. Installing grepreaper from GitHub...\n")
@@ -56,7 +56,7 @@ cat("Solving problems WITHOUT the package first using fread + filtering\n\n")
 cat("Test 2.1: Manual approach for 'Good' cut diamonds\n")
 cat("--------------------------------------------------\n")
 cat("Step 1: Read full data with fread (no grep allowed)\n")
-full_data <- fread("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv")
+full_data <- fread("data/diamonds.csv")
 cat("Full data loaded - Rows:", nrow(full_data), "Columns:", ncol(full_data), "\n")
 cat("Column names:", paste(names(full_data), collapse=", "), "\n")
 cat("Data types:\n")
@@ -91,8 +91,9 @@ cat("VS1 clarity percentage:", round(mean(full_data$clarity == "VS1") * 100, 2),
 cat("\nTest 2.3: Manual approach for multiple files\n")
 cat("---------------------------------------------\n")
 cat("Step 1: Read both files manually\n")
-diamonds_data <- fread("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv")
-parks_data <- fread("C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv")
+diamonds_data <- fread("data/diamonds.csv")
+# Note: Parks data not available locally, will skip this test
+parks_data <- data.table()
 
 cat("Diamonds data - Rows:", nrow(diamonds_data), "Columns:", ncol(diamonds_data), "\n")
 cat("Parks data - Rows:", nrow(parks_data), "Columns:", ncol(parks_data), "\n")
@@ -126,7 +127,7 @@ cat("Now test the package and compare results with manual approach\n\n")
 cat("Test 3.1: Package approach for 'Good' cut diamonds\n")
 cat("--------------------------------------------------\n")
 cat("Step 1: Use grepreaper to find 'Good' cut diamonds\n")
-package_good_cut <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+package_good_cut <- grep_read(files = "data/diamonds.csv",
                               pattern = "Good", nrows = 100)
 cat("Package result - Rows:", nrow(package_good_cut), "Columns:", ncol(package_good_cut), "\n")
 cat("Package column names:", paste(names(package_good_cut), collapse=", "), "\n")
@@ -145,7 +146,7 @@ if (nrow(package_good_cut) > 0) {
 cat("\nTest 3.2: Package approach for 'VS1' clarity diamonds\n")
 cat("------------------------------------------------------\n")
 cat("Step 1: Use grepreaper to find 'VS1' clarity diamonds\n")
-package_vs1_clarity <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+package_vs1_clarity <- grep_read(files = "data/diamonds.csv",
                                  pattern = "VS1", nrows = 100)
 cat("Package result - Rows:", nrow(package_vs1_clarity), "Columns:", ncol(package_vs1_clarity), "\n")
 cat("Package column names:", paste(names(package_vs1_clarity), collapse=", "), "\n")
@@ -164,8 +165,8 @@ if (nrow(package_vs1_clarity) > 0) {
 cat("\nTest 3.3: Package approach for multiple files\n")
 cat("----------------------------------------------\n")
 cat("Step 1: Use grepreaper for multiple files with 'VS1' pattern\n")
-package_multiple_vs1 <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
-                                            "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"),
+# Note: Only testing with diamonds.csv since parks data not available locally
+package_multiple_vs1 <- grep_read(files = "data/diamonds.csv",
                                   pattern = "VS1", nrows = 100, include_filename = TRUE)
 cat("Package result - Rows:", nrow(package_multiple_vs1), "Columns:", ncol(package_multiple_vs1), "\n")
 cat("Package column names:", paste(names(package_multiple_vs1), collapse=", "), "\n")
@@ -185,7 +186,7 @@ if (nrow(package_multiple_vs1) > 0) {
 cat("\nTest 3.4: Command display functionality\n")
 cat("---------------------------------------\n")
 cat("Step 1: Get grep command that would be executed\n")
-cmd_output <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+cmd_output <- grep_read(files = "data/diamonds.csv",
                         show_cmd = TRUE, pattern = "VS1")
 cat("Generated grep command:\n")
 cat(cmd_output, "\n")
@@ -266,7 +267,7 @@ for (pattern in patterns_to_test) {
   }
   
   # Package approach
-  package_result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+  package_result <- grep_read(files = "data/diamonds.csv",
                              pattern = pattern, nrows = 100)
   package_count <- nrow(package_result)
   
