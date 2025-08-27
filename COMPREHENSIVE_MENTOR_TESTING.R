@@ -1,6 +1,6 @@
 # =============================================================================
 # COMPREHENSIVE TESTING PLAN FOR GREPREAPER PACKAGE
-# Based on Mentor's Specific Feedback and Requirements
+# Based on Mentor's Specific Feedback: "Solve problems WITHOUT the package first"
 # =============================================================================
 #
 # Instructions:
@@ -45,272 +45,280 @@ help(grep_read)
 cat("PHASE 1 COMPLETE\n\n")
 
 # =============================================================================
-# PHASE 2: BASIC FILE READING TESTS (MENTOR'S CORE CONCERNS)
+# PHASE 2: MANUAL PROBLEM SOLVING (MENTOR'S APPROACH)
 # =============================================================================
 
-cat("PHASE 2: BASIC FILE READING TESTS\n")
-cat("==================================\n")
+cat("PHASE 2: MANUAL PROBLEM SOLVING (MENTOR'S APPROACH)\n")
+cat("====================================================\n")
+cat("Solving problems WITHOUT the package first using fread + filtering\n\n")
 
-# Test 2.1: Basic file reading
-cat("Test 2.1: Basic file reading\n")
-cat("-----------------------------\n")
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv")
-cat("Basic reading - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("Column names:", paste(names(result), collapse=", "), "\n\n")
+# Test 2.1: Manual approach for "Good" cut diamonds
+cat("Test 2.1: Manual approach for 'Good' cut diamonds\n")
+cat("--------------------------------------------------\n")
+cat("Step 1: Read full data with fread (no grep allowed)\n")
+full_data <- fread("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv")
+cat("Full data loaded - Rows:", nrow(full_data), "Columns:", ncol(full_data), "\n")
+cat("Column names:", paste(names(full_data), collapse=", "), "\n")
+cat("Data types:\n")
+str(full_data)
 
-# Test 2.2: Reading with nrows limit
-cat("Test 2.2: Reading with nrows limit\n")
-cat("----------------------------------\n")
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", nrows = 100)
-cat("Nrows limit - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+cat("\nStep 2: Apply filtering to find 'Good' cut diamonds\n")
+good_cut_diamonds <- full_data[cut == "Good"]
+cat("Filtered 'Good' cut diamonds - Rows:", nrow(good_cut_diamonds), "\n")
+cat("First 5 rows of filtered data:\n")
+print(head(good_cut_diamonds, 5))
 
-# Test 2.3: Reading with empty pattern (direct file read)
-cat("Test 2.3: Reading with empty pattern (direct file read)\n")
-cat("------------------------------------------------------\n")
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", nrows = 100, pattern = "")
-cat("Empty pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+cat("\nStep 3: Examine the results carefully (10 minutes as mentor suggested)\n")
+cat("Cut column unique values:", paste(unique(full_data$cut), collapse=", "), "\n")
+cat("Good cut count:", sum(full_data$cut == "Good"), "\n")
+cat("Good cut percentage:", round(mean(full_data$cut == "Good") * 100, 2), "%\n")
 
-# Test 2.4: Pattern matching (case-insensitive)
-cat("Test 2.4: Pattern matching (case-insensitive)\n")
+# Test 2.2: Manual approach for "VS1" clarity diamonds
+cat("\nTest 2.2: Manual approach for 'VS1' clarity diamonds\n")
+cat("-----------------------------------------------------\n")
+cat("Step 1: Filter for VS1 clarity\n")
+vs1_clarity_diamonds <- full_data[clarity == "VS1"]
+cat("Filtered 'VS1' clarity diamonds - Rows:", nrow(vs1_clarity_diamonds), "\n")
+cat("First 5 rows of filtered data:\n")
+print(head(vs1_clarity_diamonds, 5))
+
+cat("\nStep 2: Examine VS1 results carefully\n")
+cat("Clarity column unique values:", paste(unique(full_data$clarity), collapse=", "), "\n")
+cat("VS1 clarity count:", sum(full_data$clarity == "VS1"), "\n")
+cat("VS1 clarity percentage:", round(mean(full_data$clarity == "VS1") * 100, 2), "%\n")
+
+# Test 2.3: Manual approach for multiple files
+cat("\nTest 2.3: Manual approach for multiple files\n")
 cat("---------------------------------------------\n")
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", nrows = 100, pattern = "VS1")
-cat("Pattern VS1 - Rows:", nrow(result), "Columns:", ncol(result), "\n")
+cat("Step 1: Read both files manually\n")
+diamonds_data <- fread("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv")
+parks_data <- fread("C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv")
 
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", nrows = 100, pattern = "Good")
-cat("Pattern Good - Rows:", nrow(result), "Columns:", ncol(result), "\n")
+cat("Diamonds data - Rows:", nrow(diamonds_data), "Columns:", ncol(diamonds_data), "\n")
+cat("Parks data - Rows:", nrow(parks_data), "Columns:", ncol(parks_data), "\n")
 
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", nrows = 100, pattern = "Ideal")
-cat("Pattern Ideal - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+cat("\nStep 2: Filter both files for 'VS1' and add source identifiers\n")
+diamonds_vs1 <- diamonds_data[clarity == "VS1"]
+parks_vs1 <- parks_data[grepl("VS1", as.character(.SD), ignore.case = TRUE), .SDcols = names(parks_data)]
 
-# Test 2.5: Command display
-cat("Test 2.5: Command display\n")
-cat("-------------------------\n")
-cmd <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", show_cmd = TRUE, nrows = 100, pattern = "VS1")
-cat("Command:", cmd, "\n\n")
+cat("Diamonds VS1 - Rows:", nrow(diamonds_vs1), "\n")
+cat("Parks VS1 - Rows:", nrow(parks_vs1), "\n")
+
+# Add source file identifiers manually
+if (nrow(diamonds_vs1) > 0) {
+  diamonds_vs1[, source_file := "diamonds.csv"]
+}
+if (nrow(parks_vs1) > 0) {
+  parks_vs1[, source_file := "Amusement_Parks_Rides_Registered.csv"]
+}
 
 cat("PHASE 2 COMPLETE\n\n")
 
 # =============================================================================
-# PHASE 3: MULTIPLE FILES TESTS (MENTOR'S SPECIFIC FOCUS)
+# PHASE 3: PACKAGE FUNCTIONALITY TESTING (COMPARISON)
 # =============================================================================
 
-cat("PHASE 3: MULTIPLE FILES TESTS\n")
-cat("==============================\n")
+cat("PHASE 3: PACKAGE FUNCTIONALITY TESTING (COMPARISON)\n")
+cat("==================================================\n")
+cat("Now test the package and compare results with manual approach\n\n")
 
-# Test 3.1: Multiple files without metadata
-cat("Test 3.1: Multiple files without metadata\n")
-cat("-----------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = FALSE)
-cat("Multiple files no metadata - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+# Test 3.1: Package approach for "Good" cut diamonds
+cat("Test 3.1: Package approach for 'Good' cut diamonds\n")
+cat("--------------------------------------------------\n")
+cat("Step 1: Use grepreaper to find 'Good' cut diamonds\n")
+package_good_cut <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+                              pattern = "Good", nrows = 100)
+cat("Package result - Rows:", nrow(package_good_cut), "Columns:", ncol(package_good_cut), "\n")
+cat("Package column names:", paste(names(package_good_cut), collapse=", "), "\n")
 
-# Test 3.2: Multiple files without metadata, with nrows limit
-cat("Test 3.2: Multiple files without metadata, with nrows limit\n")
-cat("-----------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = FALSE, nrows = 100)
-cat("Multiple files no metadata + nrows - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+cat("\nStep 2: Compare with manual approach\n")
+cat("Manual approach found:", nrow(good_cut_diamonds), "rows\n")
+cat("Package approach found:", nrow(package_good_cut), "rows\n")
+cat("Match?", nrow(package_good_cut) == nrow(good_cut_diamonds), "\n")
 
-# Test 3.3: Multiple files without metadata, with nrows limit and empty pattern
-cat("Test 3.3: Multiple files without metadata, with nrows limit and empty pattern\n")
-cat("-------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = FALSE, nrows = 100, pattern = "")
-cat("Multiple files no metadata + nrows + empty pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+if (nrow(package_good_cut) > 0) {
+  cat("First 5 rows from package:\n")
+  print(head(package_good_cut, 5))
+}
 
-# Test 3.4: Multiple files without metadata, with nrows limit and pattern
-cat("Test 3.4: Multiple files without metadata, with nrows limit and pattern\n")
-cat("--------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = FALSE, nrows = 100, pattern = "VS1")
-cat("Multiple files no metadata + nrows + pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("First 2 rows:\n")
-print(result[1:2,])
-cat("\n")
+# Test 3.2: Package approach for "VS1" clarity diamonds
+cat("\nTest 3.2: Package approach for 'VS1' clarity diamonds\n")
+cat("------------------------------------------------------\n")
+cat("Step 1: Use grepreaper to find 'VS1' clarity diamonds\n")
+package_vs1_clarity <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+                                 pattern = "VS1", nrows = 100)
+cat("Package result - Rows:", nrow(package_vs1_clarity), "Columns:", ncol(package_vs1_clarity), "\n")
+cat("Package column names:", paste(names(package_vs1_clarity), collapse=", "), "\n")
+
+cat("\nStep 2: Compare with manual approach\n")
+cat("Manual approach found:", nrow(vs1_clarity_diamonds), "rows\n")
+cat("Package approach found:", nrow(package_vs1_clarity), "rows\n")
+cat("Match?", nrow(package_vs1_clarity) == nrow(vs1_clarity_diamonds), "\n")
+
+if (nrow(package_vs1_clarity) > 0) {
+  cat("First 5 rows from package:\n")
+  print(head(package_vs1_clarity, 5))
+}
+
+# Test 3.3: Package approach for multiple files
+cat("\nTest 3.3: Package approach for multiple files\n")
+cat("----------------------------------------------\n")
+cat("Step 1: Use grepreaper for multiple files with 'VS1' pattern\n")
+package_multiple_vs1 <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+                                            "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"),
+                                  pattern = "VS1", nrows = 100, include_filename = TRUE)
+cat("Package result - Rows:", nrow(package_multiple_vs1), "Columns:", ncol(package_multiple_vs1), "\n")
+cat("Package column names:", paste(names(package_multiple_vs1), collapse=", "), "\n")
+
+cat("\nStep 2: Compare with manual approach\n")
+manual_total_vs1 <- nrow(diamonds_vs1) + nrow(parks_vs1)
+cat("Manual approach total VS1 rows:", manual_total_vs1, "\n")
+cat("Package approach total VS1 rows:", nrow(package_multiple_vs1), "\n")
+cat("Match?", nrow(package_multiple_vs1) == manual_total_vs1, "\n")
+
+if (nrow(package_multiple_vs1) > 0) {
+  cat("First 5 rows from package:\n")
+  print(head(package_multiple_vs1, 5))
+}
+
+# Test 3.4: Command display functionality
+cat("\nTest 3.4: Command display functionality\n")
+cat("---------------------------------------\n")
+cat("Step 1: Get grep command that would be executed\n")
+cmd_output <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+                        show_cmd = TRUE, pattern = "VS1")
+cat("Generated grep command:\n")
+cat(cmd_output, "\n")
+
+cat("\nStep 2: Check if command looks correct\n")
+cat("Command contains 'VS1':", grepl("VS1", cmd_output), "\n")
+cat("Command contains file path:", grepl("diamonds.csv", cmd_output), "\n")
+cat("Command contains grep:", grepl("grep", cmd_output), "\n")
 
 cat("PHASE 3 COMPLETE\n\n")
 
 # =============================================================================
-# PHASE 4: LINE NUMBERS TESTS (MENTOR'S CRITICAL CONCERN)
+# PHASE 4: DETAILED OUTPUT ANALYSIS (MENTOR'S 10-MINUTE EXAMINATION)
 # =============================================================================
 
-cat("PHASE 4: LINE NUMBERS TESTS\n")
-cat("===========================\n")
+cat("PHASE 4: DETAILED OUTPUT ANALYSIS (MENTOR'S 10-MINUTE EXAMINATION)\n")
+cat("==================================================================\n")
+cat("Take 10 minutes to examine every aspect of the results\n\n")
 
-# Test 4.1: Multiple files with line numbers but no filenames
-cat("Test 4.1: Multiple files with line numbers but no filenames\n")
-cat("----------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = FALSE)
-cat("Multiple files + line numbers no filenames - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("Columns:", paste(names(result), collapse=", "), "\n\n")
+# Analysis 4.1: Data structure comparison
+cat("Analysis 4.1: Data structure comparison\n")
+cat("---------------------------------------\n")
+cat("Manual approach structure:\n")
+str(good_cut_diamonds)
+cat("\nPackage approach structure:\n")
+if (nrow(package_good_cut) > 0) {
+  str(package_good_cut)
+} else {
+  cat("Package returned empty result\n")
+}
 
-# Test 4.2: Multiple files with line numbers but no filenames, with nrows limit
-cat("Test 4.2: Multiple files with line numbers but no filenames, with nrows limit\n")
-cat("-------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = FALSE, nrows = 100)
-cat("Multiple files + line numbers no filenames + nrows - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+# Analysis 4.2: Column comparison
+cat("\nAnalysis 4.2: Column comparison\n")
+cat("--------------------------------\n")
+cat("Manual approach columns:", paste(names(good_cut_diamonds), collapse=", "), "\n")
+if (nrow(package_good_cut) > 0) {
+  cat("Package approach columns:", paste(names(package_good_cut), collapse=", "), "\n")
+  cat("Column match?", identical(names(good_cut_diamonds), names(package_good_cut)), "\n")
+} else {
+  cat("Package returned empty result - cannot compare columns\n")
+}
 
-# Test 4.3: Multiple files with line numbers but no filenames, with nrows limit and empty pattern
-cat("Test 4.3: Multiple files with line numbers but no filenames, with nrows limit and empty pattern\n")
-cat("------------------------------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = FALSE, nrows = 100, pattern = "")
-cat("Multiple files + line numbers no filenames + nrows + empty pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+# Analysis 4.3: Data content comparison
+cat("\nAnalysis 4.3: Data content comparison\n")
+cat("-------------------------------------\n")
+if (nrow(package_good_cut) > 0 && nrow(good_cut_diamonds) > 0) {
+  cat("First row comparison:\n")
+  cat("Manual first row:\n")
+  print(good_cut_diamonds[1])
+  cat("Package first row:\n")
+  print(package_good_cut[1])
+  
+  cat("\nData type comparison:\n")
+  cat("Manual cut column type:", class(good_cut_diamonds$cut), "\n")
+  if ("cut" %in% names(package_good_cut)) {
+    cat("Package cut column type:", class(package_good_cut$cut), "\n")
+  } else {
+    cat("Package does not have cut column\n")
+  }
+} else {
+  cat("Cannot compare content - one or both approaches returned empty results\n")
+}
 
-# Test 4.4: Multiple files with line numbers but no filenames, with nrows limit and pattern
-cat("Test 4.4: Multiple files with line numbers but no filenames, with nrows limit and pattern\n")
-cat("----------------------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = FALSE, nrows = 100, pattern = "VS1")
-cat("Multiple files + line numbers no filenames + nrows + pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("First 2 rows:\n")
-print(result[1:2,])
-cat("\n")
+# Analysis 4.4: Pattern matching accuracy
+cat("\nAnalysis 4.4: Pattern matching accuracy\n")
+cat("----------------------------------------\n")
+cat("Testing different patterns:\n")
+
+patterns_to_test <- c("Good", "VS1", "Premium", "Ideal", "D", "E", "F")
+for (pattern in patterns_to_test) {
+  cat("\nPattern:", pattern, "\n")
+  
+  # Manual approach
+  manual_count <- if (pattern %in% names(full_data)) {
+    sum(full_data[[pattern]] == pattern)
+  } else {
+    sum(grepl(pattern, as.character(as.matrix(full_data)), ignore.case = TRUE))
+  }
+  
+  # Package approach
+  package_result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
+                             pattern = pattern, nrows = 100)
+  package_count <- nrow(package_result)
+  
+  cat("  Manual count:", manual_count, "\n")
+  cat("  Package count:", package_count, "\n")
+  cat("  Match?", manual_count == package_count, "\n")
+}
 
 cat("PHASE 4 COMPLETE\n\n")
 
 # =============================================================================
-# PHASE 5: FILENAME TESTS (MENTOR'S METADATA FOCUS)
+# PHASE 5: SUMMARY AND RECOMMENDATIONS
 # =============================================================================
 
-cat("PHASE 5: FILENAME TESTS\n")
-cat("=======================\n")
+cat("PHASE 5: SUMMARY AND RECOMMENDATIONS\n")
+cat("====================================\n")
 
-# Test 5.1: Multiple files with filenames but no line numbers
-cat("Test 5.1: Multiple files with filenames but no line numbers\n")
-cat("-----------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = TRUE)
-cat("Multiple files + filenames no line numbers - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("Columns:", paste(names(result), collapse=", "), "\n\n")
+cat("Testing Summary:\n")
+cat("----------------\n")
+cat("1. Manual approach results:\n")
+cat("   - Good cut diamonds:", nrow(good_cut_diamonds), "\n")
+cat("   - VS1 clarity diamonds:", nrow(vs1_clarity_diamonds), "\n")
+cat("   - Total VS1 across files:", manual_total_vs1, "\n")
 
-# Test 5.2: Multiple files with filenames but no line numbers, with nrows limit
-cat("Test 5.2: Multiple files with filenames but no line numbers, with nrows limit\n")
-cat("-------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = TRUE, nrows = 100)
-cat("Multiple files + filenames no line numbers + nrows - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
+cat("\n2. Package approach results:\n")
+cat("   - Good cut diamonds:", nrow(package_good_cut), "\n")
+cat("   - VS1 clarity diamonds:", nrow(package_vs1_clarity), "\n")
+cat("   - Total VS1 across files:", nrow(package_multiple_vs1), "\n")
 
-# Test 5.3: Multiple files with filenames but no line numbers, with nrows limit and empty pattern
-cat("Test 5.3: Multiple files with filenames but no line numbers, with nrows limit and empty pattern\n")
-cat("------------------------------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = TRUE, nrows = 100, pattern = "")
-cat("Multiple files + filenames no line numbers + nrows + empty pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
-
-# Test 5.4: Multiple files with filenames but no line numbers, with nrows limit and pattern
-cat("Test 5.4: Multiple files with filenames but no line numbers, with nrows limit and pattern\n")
-cat("----------------------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = FALSE, include_filename = TRUE, nrows = 100, pattern = "VS1")
-cat("Multiple files + filenames no line numbers + nrows + pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("First 2 rows:\n")
-print(result[1:2,])
-cat("\n")
-
-cat("PHASE 5 COMPLETE\n\n")
-
-# =============================================================================
-# PHASE 6: COMPLETE METADATA TESTS (MENTOR'S FULL FUNCTIONALITY TEST)
-# =============================================================================
-
-cat("PHASE 6: COMPLETE METADATA TESTS\n")
-cat("=================================\n")
-
-# Test 6.1: Multiple files with both filenames and line numbers
-cat("Test 6.1: Multiple files with both filenames and line numbers\n")
-cat("------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = TRUE)
-cat("Multiple files + both metadata - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("Columns:", paste(names(result), collapse=", "), "\n\n")
-
-# Test 6.2: Multiple files with both filenames and line numbers, with nrows limit
-cat("Test 6.2: Multiple files with both filenames and line numbers, with nrows limit\n")
-cat("---------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = TRUE, nrows = 100)
-cat("Multiple files + both metadata + nrows - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
-
-# Test 6.3: Multiple files with both filenames and line numbers, with nrows limit and empty pattern
-cat("Test 6.3: Multiple files with both filenames and line numbers, with nrows limit and empty pattern\n")
-cat("------------------------------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = TRUE, nrows = 100, pattern = "")
-cat("Multiple files + both metadata + nrows + empty pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n\n")
-
-# Test 6.4: Multiple files with both filenames and line numbers, with nrows limit and pattern
-cat("Test 6.4: Multiple files with both filenames and line numbers, with nrows limit and pattern\n")
-cat("----------------------------------------------------------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = TRUE, nrows = 100, pattern = "VS1")
-cat("Multiple files + both metadata + nrows + pattern - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-cat("First 2 rows:\n")
-print(result[1:2,])
-cat("\n")
-
-cat("PHASE 6 COMPLETE\n\n")
-
-# =============================================================================
-# PHASE 7: DATA INTEGRITY TESTS (MENTOR'S QUALITY CHECK)
-# =============================================================================
-
-cat("PHASE 7: DATA INTEGRITY TESTS\n")
-cat("==============================\n")
-
-# Test 7.1: Check for data corruption
-cat("Test 7.1: Check for data corruption\n")
-cat("-----------------------------------\n")
-result <- grep_read(files = "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", nrows = 1000, pattern = "")
-cat("Data integrity check - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-
-# Check for NA values in carat column
-if ("carat" %in% names(result)) {
-  na_count <- sum(is.na(result$carat))
-  na_percentage <- round((na_count / nrow(result)) * 100, 2)
-  cat("NA values in carat column:", na_count, "(", na_percentage, "%)\n")
-  
-  if (na_percentage == 0) {
-    cat("🎉 PERFECT: No data corruption detected!\n")
-  } else {
-    cat("❌ WARNING: Data corruption detected\n")
-  }
+cat("\n3. Critical issues found:\n")
+if (nrow(package_good_cut) == 0) {
+  cat("   ❌ Pattern matching for 'Good' is BROKEN\n")
 } else {
-  cat("❌ ERROR: carat column not found\n")
+  cat("   ✅ Pattern matching for 'Good' is WORKING\n")
 }
-cat("\n")
 
-# Test 7.2: Check line number sequence
-cat("Test 7.2: Check line number sequence\n")
-cat("------------------------------------\n")
-result <- grep_read(files = c("C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv", "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv"), 
-                    show_line_numbers = TRUE, include_filename = TRUE, nrows = 100)
-cat("Line number check - Rows:", nrow(result), "Columns:", ncol(result), "\n")
-
-# Check if line numbers restart for each file
-if ("line_number" %in% names(result) && "source_file" %in% names(result)) {
-  unique_files <- unique(result$source_file)
-  cat("Files found:", paste(unique_files, collapse=", "), "\n")
-  
-  for (file in unique_files) {
-    file_data <- result[result$source_file == file, ]
-    cat("File:", file, "- Line numbers:", min(file_data$line_number), "to", max(file_data$line_number), "\n")
-  }
+if (nrow(package_vs1_clarity) == 0) {
+  cat("   ❌ Pattern matching for 'VS1' is BROKEN\n")
 } else {
-  cat("❌ ERROR: Required columns not found\n")
+  cat("   ✅ Pattern matching for 'VS1' is WORKING\n")
 }
-cat("\n")
 
-cat("PHASE 7 COMPLETE\n\n")
+if (nrow(package_multiple_vs1) == 0) {
+  cat("   ❌ Multiple file pattern matching is BROKEN\n")
+} else {
+  cat("   ✅ Multiple file pattern matching is WORKING\n")
+}
 
-# =============================================================================
-# FINAL SUMMARY
-# =============================================================================
+cat("\n4. Recommendations:\n")
+cat("   - If any pattern matching is broken, the package needs immediate fixes\n")
+cat("   - Focus on data quality and accuracy, not just error-free execution\n")
+cat("   - Compare every output with manual approach results\n")
 
-cat("=== TESTING COMPLETE ===\n")
-cat("All phases have been executed.\n")
-cat("Please send me the complete output from this testing session.\n")
-cat("Include any error messages, warnings, or unexpected behavior.\n")
-cat("=============================================\n")
+cat("\n=== TESTING COMPLETE ===\n")
+cat("Send these results back to me for analysis\n")
