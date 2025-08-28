@@ -65,6 +65,99 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
          "Please install it via install.packages('data.table').")
   }
 
+  # CRITICAL FIX: Process search_column BEFORE show_cmd check
+  # This ensures column-specific search works correctly
+  if (!is.null(search_column) && pattern != "") {
+    # Handle column-specific search first
+    if (is.null(files) && !is.null(path)) {
+      files <- list.files(path = path, pattern = file_pattern,
+                          full.names = TRUE, recursive = recursive)
+    }
+    if (!is.null(files)) {
+      files <- path.expand(files)
+    }
+    
+    # CRITICAL: Ensure files is properly set before proceeding
+    if (is.null(files) || length(files) == 0) {
+      stop("'files' must be a non-empty character vector for search_column functionality")
+    }
+    if (!is.character(pattern) || length(pattern) != 1) {
+      stop("'pattern' must be a single character string")
+    }
+    
+    # Check file existence
+    missing_files <- files[!file.exists(files)]
+    if (length(missing_files) > 0) {
+      stop(sprintf("The following file(s) do not exist: %s", 
+                   paste(missing_files, collapse = ", ")))
+    }
+    
+    # CRITICAL FIX: For search_column, we need to read the file and filter
+    # This bypasses grep entirely for column-specific search
+    
+    # Read the file to get column structure
+    file_data <- data.table::fread(files[1], nrows = nrows, header = header)
+    
+    if (search_column %in% names(file_data)) {
+      # Filter by the specific column
+      col_data <- file_data[[search_column]]
+      
+      # Handle different data types appropriately
+      if (is.character(col_data) || is.factor(col_data)) {
+        # For character/factor columns, use exact matching
+        if (fixed) {
+          matching_rows <- col_data == pattern
+        } else {
+          # For regex patterns, still use exact matching to avoid false positives
+          matching_rows <- col_data == pattern
+        }
+      } else if (is.numeric(col_data)) {
+        # For numeric columns, convert pattern to numeric for comparison
+        pattern_num <- suppressWarnings(as.numeric(pattern))
+        if (!is.na(pattern_num)) {
+          matching_rows <- col_data == pattern_num
+        } else {
+          # Pattern can't be converted to numeric, no matches
+          matching_rows <- logical(length(col_data))
+        }
+      } else {
+        # For other data types, no matches
+        matching_rows <- logical(length(col_data))
+      }
+      
+      if (invert) matching_rows <- !matching_rows
+      
+      if (sum(matching_rows) > 0) {
+        # Return the filtered data directly
+        result_data <- file_data[matching_rows]
+        
+        # Add metadata columns if requested
+        if (show_line_numbers) {
+          result_data[, line_number := seq_len(.N)]
+        }
+        if (!is.null(include_filename) && include_filename) {
+          result_data[, source_file := basename(files[1])]
+        }
+        
+        return(result_data)
+      } else {
+        # No matches found, return empty data.table with same structure
+        empty_dt <- file_data[0]  # Empty copy with same columns
+        if (show_line_numbers) {
+          empty_dt[, line_number := integer(0)]
+        }
+        if (!is.null(include_filename) && include_filename) {
+          empty_dt[, source_file := character(0)]
+        }
+        return(empty_dt)
+      }
+    } else {
+      # Column not found, fall back to grep
+      warning(sprintf("Column '%s' not found in file. Falling back to grep search.", search_column))
+      # Continue to normal grep logic below
+    }
+  }
+
   # PERFORMANCE OPTIMIZATION: Early exit for show_cmd (no file processing needed)
   if (show_cmd) {
     # Build command and return immediately for maximum speed
@@ -99,6 +192,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         (show_line_numbers && length(files) > 1)) {
       options <- c(options, "-H")
     }
+    
     if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
       options <- c(options, "-H")
     }
@@ -340,75 +434,13 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           }
         }
       } else {
-        # CRITICAL FIX: Implement column-specific pattern matching for better accuracy
-        if (!is.null(search_column) && pattern != "") {
-          # Column-specific search: modify pattern to be more specific
-          # This helps reduce false positives from searching all columns
-          cat("DEBUG: Using column-specific search in column:", search_column, "\n")
-          
-          # For column-specific search, we'll use a more targeted approach
-          # Read the file and filter by the specific column
-          tryCatch({
-            file_data <- data.table::fread(files[1], nrows = nrows, header = header)
-            
-            if (search_column %in% names(file_data)) {
-              # Filter by the specific column
-              col_data <- file_data[[search_column]]
-              if (is.character(col_data) || is.factor(col_data)) {
-                # CRITICAL FIX: Use exact matching for column-specific search
-                # This ensures we only match the exact value in the specified column
-                # Not pattern matches within data values
-                if (fixed) {
-                  # For fixed strings, use exact equality
-                  matching_rows <- col_data == pattern
-                } else {
-                  # For regex patterns, use exact column value matching
-                  # This prevents matching patterns within data values
-                  matching_rows <- col_data == pattern
-                }
-                
-                if (invert) matching_rows <- !matching_rows
-                
-                if (sum(matching_rows) > 0) {
-                  result_data <- file_data[matching_rows]
-                  # Convert to character for consistency with grep output
-                  result <- apply(result_data, 1, function(row) paste(row, collapse = ","))
-                } else {
-                  result <- character(0)
-                }
-              } else {
-                # Non-character column, fall back to grep
-                cat("DEBUG: Column", search_column, "is not character/factor, using grep\n")
-                result <- safe_system_call(cmd)
-              }
-            } else {
-              # Column not found, fall back to grep
-              cat("DEBUG: Column", search_column, "not found, using grep\n")
-              result <- safe_system_call(cmd)
-            }
-          }, error = function(e) {
-            # Error reading file, fall back to grep
-            cat("DEBUG: Error reading file for column-specific search, using grep\n")
-            result <- safe_system_call(cmd)
-          })
-        } else {
-          # Use grep for pattern matching (original behavior)
-          # Check if the command returns any results first
-          result <- safe_system_call(cmd)
-        }
+        # Use grep for pattern matching (original behavior)
+        # Check if the command returns any results first
+        result <- safe_system_call(cmd)
         
-        # DEBUGGING: Always show grep command and result for troubleshooting
-        if (getOption("grepreaper.debug", FALSE) || show_progress) {
-          cat("DEBUG: Grep command:", cmd, "\n")
-          cat("DEBUG: Grep returned", length(result), "lines\n")
-          if (length(result) > 0) {
-            cat("DEBUG: First few lines from grep:\n")
-            for (i in seq_len(min(3, length(result)))) {
-              cat("  ", i, ":", result[i], "\n")
-            }
-          } else {
-            cat("DEBUG: No results from grep - command may have failed\n")
-          }
+        # Progress indicator (only when explicitly requested)
+        if (show_progress) {
+          cat("Processing grep results...\n")
         }
         
         if (length(result) == 0) {
