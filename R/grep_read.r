@@ -396,13 +396,14 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         }
         
                 # CRITICAL FIX: Add metadata columns for direct file reads when requested
-        # For multiple files, we only need source_file if explicitly requested
-        # We don't need source_file for line numbers when include_filename = FALSE
+        # For multiple files, we need source_file temporarily for line number grouping
+        # but we'll remove it later if include_filename = FALSE
         needs_source_file <- (!is.null(include_filename) && include_filename)
+        temp_source_file_needed <- (length(files) > 1 && show_line_numbers)
         
-        if (show_line_numbers || needs_source_file) {
+        if (show_line_numbers || needs_source_file || temp_source_file_needed) {
           # Add source file column first (needed for line number grouping)
-          if (needs_source_file) {
+          if (needs_source_file || temp_source_file_needed) {
             if (length(files) == 1) {
               if (nrow(dt) > 0) {
                 dt[, source_file := basename(files[1])]
@@ -426,19 +427,17 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               if (length(files) == 1) {
                 dt[, line_number := seq_len(.N)]
               } else {
-                # For multiple files, we need to track which file each row came from
-                # But only if we're keeping the source_file column
-                if (needs_source_file) {
-                  # Use proper grouping to ensure line numbers restart for each file
-                  dt[, line_number := seq_len(.N), by = source_file]
-                } else {
-                  # Simple sequential numbering across all files
-                  dt[, line_number := seq_len(.N)]
-                }
+                # For multiple files, use proper grouping to ensure line numbers restart for each file
+                dt[, line_number := seq_len(.N), by = source_file]
               }
             } else {
               dt[, line_number := integer(0)]
             }
+          }
+          
+          # Remove source_file column if user doesn't want it
+          if (!needs_source_file && "source_file" %in% names(dt)) {
+            dt[, source_file := NULL]
           }
         }
       } else {
