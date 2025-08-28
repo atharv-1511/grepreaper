@@ -34,7 +34,7 @@
 #'   - only_matching=TRUE: Single 'match' column with matched substrings
 #'   - count_only=TRUE: 'source_file' and 'count' columns
 #'   - show_cmd=TRUE: Character string containing the grep command
-#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder ":=" .N
+#' @importFrom data.table fread setnames data.table as.data.table rbindlist setorder setcolorder ":=" .N
 #' @importFrom stats setNames rowSums
 #' @importFrom utils globalVariables
 #' @export
@@ -139,7 +139,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           result_data[, source_file := basename(files[1])]
         }
         
-        return(result_data)
+        # FIX 1: Add brackets to return statement
+        return(result_data[])
       } else {
         # No matches found, return empty data.table with same structure
         empty_dt <- file_data[0]  # Empty copy with same columns
@@ -149,7 +150,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         if (!is.null(include_filename) && include_filename) {
           empty_dt[, source_file := character(0)]
         }
-        return(empty_dt)
+        # FIX 1: Add brackets to return statement
+        return(empty_dt[])
       }
     } else {
       # Column not found, fall back to grep
@@ -283,7 +285,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     }
   }
 
-  # Set default for include_filename based on number of files
+  # FIX 3: Set default for include_filename based on number of files
   # Only set to TRUE if explicitly requested or if we need it for metadata
   if (is.null(include_filename)) {
     include_filename <- FALSE  # Default to FALSE to avoid interference with pattern matching
@@ -394,7 +396,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         }
         
                 # CRITICAL FIX: Add metadata columns for direct file reads when requested
-        # For multiple files, we always need source_file for proper line number grouping
+        # For multiple files, we only need source_file if explicitly requested or for line numbers
         needs_source_file <- (!is.null(include_filename) && include_filename) || 
                            (length(files) > 1 && show_line_numbers)
         
@@ -469,17 +471,15 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           
           # CRITICAL FIX: Add metadata columns even for empty results
           # This ensures the test for special characters doesn't fail
-          if (show_line_numbers || include_filename) {
-            # Create empty metadata columns
-            if (show_line_numbers) {
-              result_dt[, line_number := integer(0)]
-            }
-            if (include_filename) {
-              result_dt[, source_file := character(0)]
-            }
+          if (show_line_numbers) {
+            result_dt[, line_number := integer(0)]
+          }
+          if (!is.null(include_filename) && include_filename) {
+            result_dt[, source_file := character(0)]
           }
           
-          return(result_dt)
+          # FIX 1: Add brackets to return statement
+          return(result_dt[])
         }
 
         # CRITICAL FIX: When using grep with pattern matching, we need to ensure
@@ -777,7 +777,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               dt[, line_number := seq_len(.N), by = source_file]
             }
 
-            # If user doesn't want filename displayed, remove the column
+            # FIX 3: If user doesn't want filename displayed, remove the column
             if (!include_filename) {
               dt[, source_file := NULL]
             }
@@ -815,7 +815,46 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       result_dt <- dt
     }
 
-    return(result_dt)
+    # FIX 2: Apply nrows limit after processing when using patterns
+    if (is.finite(nrows) && nrows > 0 && !is.null(result_dt) && 
+        is.data.table(result_dt) && nrow(result_dt) > 0) {
+      # Limit rows to the requested number
+      result_dt <- result_dt[1:min(nrows, nrow(result_dt))]
+    }
+
+    # FIX 4: Ensure consistent column ordering
+    if (!is.null(result_dt) && is.data.table(result_dt) && nrow(result_dt) > 0) {
+      # Get the original column order from a shallow copy of the first file
+      tryCatch({
+        if (length(files) > 0) {
+          # Read just the header to get column names
+          header_dt <- data.table::fread(files[1], nrows = 0, header = TRUE)
+          original_cols <- names(header_dt)
+          
+          if (length(original_cols) > 0) {
+            # Get current column names
+            current_cols <- names(result_dt)
+            
+            # Separate data columns from metadata columns
+            data_cols <- current_cols[current_cols %in% original_cols]
+            metadata_cols <- current_cols[!current_cols %in% original_cols]
+            
+            # Reorder: data columns first, then metadata columns
+            new_order <- c(data_cols, metadata_cols)
+            
+            # Only reorder if we have columns to reorder
+            if (length(new_order) > 0 && length(new_order) == length(current_cols)) {
+              data.table::setcolorder(result_dt, new_order)
+            }
+          }
+        }
+      }, error = function(e) {
+        # If reordering fails, continue with current order
+      })
+    }
+
+    # FIX 1: Add brackets to return statement
+    return(result_dt[])
   }, error = function(e) {
     stop(sprintf("Error in grep_read: %s", e$message))
   })
