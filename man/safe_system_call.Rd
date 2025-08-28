@@ -2,19 +2,37 @@
 % Please edit documentation in R/utils.r
 \name{safe_system_call}
 \alias{safe_system_call}
-\title{Execute a shell command safely}
+\title{Safe system call that handles errors gracefully}
 \usage{
 safe_system_call(cmd, timeout = 60)
 }
 \arguments{
-\item{cmd}{Command to execute.}
+\item{cmd}{Command to execute (typically built with \code{build_grep_cmd})}
 
-\item{timeout}{Timeout in seconds (default: 60) - Note: not used in Windows.}
+\item{timeout}{Timeout in seconds (default: 60) - Note: not used in Windows}
 }
 \value{
-Command output as character vector, or empty vector on error.
+Result of system call as a character vector, or empty character vector
+  on error or timeout
 }
 \description{
-This function executes a shell command and handles errors gracefully.
+Executes system commands with comprehensive error handling and cross-platform
+compatibility. This function automatically detects and uses the appropriate grep
+implementation on Windows (Git for Windows or WSL) and provides timeout handling
+on Unix-like systems. It's designed to work seamlessly with the grep-related
+functions in this package.
 }
-\keyword{internal}
+\examples{
+# Safe execution of a grep command
+cmd <- build_grep_cmd("error", "log.txt")
+result <- safe_system_call(cmd)
+if (length(result) > 0) {
+  cat("Found", length(result), "matching lines\n")
+} else {
+  cat("No matches found or command failed\n")
+}
+
+# With timeout (Unix-like systems only)
+result_timeout <- safe_system_call(cmd, timeout = 30)
+
+}

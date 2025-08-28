@@ -10,8 +10,27 @@ is_binary_file(file_path)
 \item{file_path}{Path to the file to check}
 }
 \value{
-Logical indicating if the file appears to be binary
+Logical indicating if the file appears to be binary. Returns FALSE for
+  empty files or if the file cannot be read.
 }
 \description{
-Check if a file is binary
+Determines whether a file appears to be binary by examining the first 1024 bytes
+for common binary file characteristics. This function is useful for avoiding
+attempts to process binary files with text-based functions, which could cause
+errors or unexpected behavior.
+}
+\examples{
+# Check if a file is binary
+is_binary <- is_binary_file("data.csv")
+if (is_binary) {
+  cat("File appears to be binary - use appropriate reader\n")
+} else {
+  cat("File appears to be text-based\n")
+}
+
+# Check multiple files
+files <- c("text.txt", "image.png", "data.csv")
+binary_status <- sapply(files, is_binary_file)
+print(binary_status)
+
 }

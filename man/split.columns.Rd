@@ -4,28 +4,42 @@
 \alias{split.columns}
 \title{Split columns based on a delimiter}
 \usage{
-split.columns(
-  x,
-  column.names = NA,
-  split = ":",
-  resulting.columns = 3,
-  fixed = TRUE
-)
+\method{split}{columns}(x, column.names = NA, split = ":", resulting.columns = 3, fixed = TRUE)
 }
 \arguments{
 \item{x}{Character vector to split}
 
-\item{column.names}{Names for the resulting columns}
+\item{column.names}{Names for the resulting columns (optional)}
 
-\item{split}{Delimiter to split on}
+\item{split}{Delimiter to split on (default: ":")}
 
-\item{resulting.columns}{Number of columns to create}
+\item{resulting.columns}{Number of columns to create (default: 3)}
 
-\item{fixed}{Whether to use fixed string matching}
+\item{fixed}{Whether to use fixed string matching (default: TRUE)}
 }
 \value{
-data.table with split columns
+A data.table with split columns. Column names are automatically assigned
+  as V1, V2, V3, etc. unless custom names are provided via \code{column.names}.
 }
 \description{
-Split columns based on a delimiter
+Efficiently splits character vectors into multiple columns based on a specified delimiter.
+This function is optimized for performance and handles common use cases like parsing
+grep output or other delimited text data.
+}
+\examples{
+# Split grep-like output with colon delimiter
+data <- c("file.txt:15:error message", "file.txt:23:warning message")
+result <- split.columns(data, resulting.columns = 3)
+print(result)
+
+# With custom column names
+result_named <- split.columns(data, 
+                             column.names = c("filename", "line", "message"),
+                             resulting.columns = 3)
+print(result_named)
+
+# Split into 2 columns (combining remaining elements)
+result_2col <- split.columns(data, resulting.columns = 2)
+print(result_2col)
+
 }

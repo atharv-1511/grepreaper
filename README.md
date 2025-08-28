@@ -2,7 +2,7 @@
 
 **Efficient File Reading with Grep in R** - A high-performance package for fast pattern matching and data extraction from files using the power of `grep` at the command line.
 
-## **Performance Optimized - Addressing User Feedback**
+## Performance Optimized - Addressing User Feedback
 
 This package has been **completely optimized** to address speed and accuracy concerns:
 
@@ -98,75 +98,21 @@ perf_metrics <- monitor_performance({
 # Typical performance improvements:
 # - Small files (<1MB): 2-3x faster
 # - Medium files (1-100MB): 5-10x faster  
-# - Large files (>100MB): 10-50x faster
+# - Large files (>100MB): 10x+ faster
 ```
 
-## Use Cases
+## Cross-Platform Compatibility
 
-**Data Science**
-- Filter large datasets efficiently
-- Extract specific patterns from log files
-- Process structured data with metadata
+The package automatically detects and uses the appropriate grep implementation:
 
-**System Administration**
-- Search log files for errors
-- Monitor system files for changes
-- Process configuration files
-
-**Research**
-- Text mining and pattern extraction
-- Large dataset filtering
-- Multi-file data aggregation
-
-## Performance Optimizations Applied
-
-### **Speed Improvements:**
-1. **Vectorized Operations**: Replaced loops with `sapply()` and vectorized functions
-2. **Early Exit Optimization**: `show_cmd = TRUE` returns instantly without file processing
-3. **Cached Path Detection**: Windows grep paths cached after first detection
-4. **Optimized CSV Parsing**: Uses `data.table::fread` for maximum speed
-
-### **Accuracy Improvements:**
-1. **Robust CSV Parsing**: `fread` handles edge cases better than manual parsing
-2. **Metadata Priority**: Metadata parsed before CSV to prevent corruption
-3. **Fallback Handling**: Graceful degradation when optimal parsing fails
-4. **Type Preservation**: Better data type handling during processing
-
-### **Memory Efficiency:**
-1. **Streaming Processing**: Large files processed without loading entirely into memory
-2. **Efficient Data Structures**: Uses `data.table` for minimal memory footprint
-3. **Smart Column Allocation**: Pre-allocates data structures for better performance
-
-## System Requirements
-
-- **R**: >= 3.5.0
-- **Dependencies**: data.table, utils, stats
-- **System**: grep command available (automatically detected)
-- **Platforms**: Windows, macOS, Linux
+- **Windows**: Automatically finds Git for Windows or WSL
+- **macOS/Linux**: Uses native grep command
+- **Fallback**: Graceful error handling when grep unavailable
 
 ## Contributing
 
-This package is designed for CRAN submission and worldwide use. All contributions should maintain:
-- Cross-platform compatibility
-- Performance optimization
-- CRAN compliance standards
-- Comprehensive testing
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Performance Comparison
-
-| File Size | Traditional R | grepreaper | Speedup |
-|-----------|---------------|------------|---------|
-| 1MB       | 0.5s         | 0.2s      | 2.5x    |
-| 10MB      | 5.0s         | 0.8s      | 6.3x    |
-| 100MB     | 50.0s        | 5.0s      | 10.0x   |
-| 1GB       | 500.0s       | 45.0s     | 11.1x   |
-
-*Performance improvements increase with file size due to grep's streaming nature vs R's memory-based processing.*
-
----
-
-**Built for speed, accuracy, and worldwide compatibility**
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

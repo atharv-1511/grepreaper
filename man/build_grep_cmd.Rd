@@ -2,22 +2,37 @@
 % Please edit documentation in R/utils.r
 \name{build_grep_cmd}
 \alias{build_grep_cmd}
-\title{Build a grep command with proper escaping and options}
+\title{Build grep command string}
 \usage{
 build_grep_cmd(pattern, files, options = "")
 }
 \arguments{
-\item{pattern}{Pattern to search for.}
+\item{pattern}{Pattern to search for (will be automatically quoted)}
 
-\item{files}{Character vector of file paths.}
+\item{files}{Files to search in (can be a single file or vector of files)}
 
-\item{options}{Character string of grep options.}
+\item{options}{Options string for grep (e.g., "-i" for case-insensitive)}
 }
 \value{
-A character string with the grep command.
+A properly formatted command string ready for system execution
 }
 \description{
-This function builds a grep command with proper escaping and options
-based on the provided parameters.
+Constructs a safe and properly formatted grep command string for system execution.
+This function handles input sanitization to prevent command injection and ensures
+proper quoting of patterns and file paths. It's designed to work with the
+\code{safe_system_call} function for secure command execution.
 }
-\keyword{internal}
+\examples{
+# Basic grep command
+cmd <- build_grep_cmd("error", "log.txt")
+cat("Command:", cmd, "\n")
+
+# With grep options
+cmd_verbose <- build_grep_cmd("warning", "*.log", options = "-i -n")
+cat("Verbose command:", cmd_verbose, "\n")
+
+# Multiple files
+cmd_multi <- build_grep_cmd("ERROR", c("file1.txt", "file2.txt"))
+cat("Multi-file command:", cmd_multi, "\n")
+
+}

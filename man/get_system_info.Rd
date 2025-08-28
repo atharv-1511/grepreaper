@@ -2,14 +2,33 @@
 % Please edit documentation in R/utils.r
 \name{get_system_info}
 \alias{get_system_info}
-\title{Get platform-specific system information}
+\title{Get system information}
 \usage{
 get_system_info()
 }
 \value{
-A list with system information.
+A list containing system information:
+  \item{os}{Operating system name (e.g., "Windows", "Linux", "Darwin")}
+  \item{release}{OS release version}
+  \item{machine}{Machine architecture (e.g., "x86_64")}
+  \item{grep_available}{Logical indicating if grep command is available}
 }
 \description{
-This function returns information about the system, including OS type.
+Retrieves basic system information relevant to the grepreaper package functionality.
+This includes operating system details and grep availability status, which is
+useful for debugging and ensuring compatibility.
 }
-\keyword{internal}
+\examples{
+# Get system information
+sys_info <- get_system_info()
+cat("OS:", sys_info$os, "\n")
+cat("Grep available:", sys_info$grep_available, "\n")
+
+# Check if package will work on this system
+if (sys_info$grep_available) {
+  cat("grepreaper should work on this system\n")
+} else {
+  cat("grep not available - some functions may not work\n")
+}
+
+}

@@ -2,21 +2,28 @@
 % Please edit documentation in R/utils.r
 \name{check_grep_availability}
 \alias{check_grep_availability}
-\title{Check if grep is available in the system}
+\title{Check if grep is available on the system}
 \usage{
 check_grep_availability()
 }
 \value{
-A list with the following components:
-\itemize{
-  \item available: Logical indicating if grep is available
-  \item version: Character string with grep version (if available)
-  \item path: Character string with path to grep executable (if found)
-  \item error: Character string with error message (if any)
-}
+A list with two components:
+  \item{available}{Logical indicating if grep is available on the system}
+  \item{path}{Character string with the path to the grep executable, or NULL if not found}
 }
 \description{
-This function checks if the grep command is available in the system.
-It performs platform-specific checks and provides detailed error messages.
+This function checks whether the grep command-line utility is available on the current
+system. On Windows, it automatically detects Git for Windows installation or WSL (Windows
+Subsystem for Linux) to provide grep functionality. On Unix-like systems, it checks
+for the standard grep command.
 }
-\keyword{internal}
+\examples{
+# Check if grep is available
+grep_status <- check_grep_availability()
+if (grep_status$available) {
+  cat("grep is available at:", grep_status$path, "\n")
+} else {
+  cat("grep is not available on this system\n")
+}
+
+}

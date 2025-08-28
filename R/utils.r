@@ -2,12 +2,36 @@
 utils::globalVariables(c(":=", ".N", "V1", "V2", "V3"))
 
 #' Split columns based on a delimiter
+#' 
+#' Efficiently splits character vectors into multiple columns based on a specified delimiter.
+#' This function is optimized for performance and handles common use cases like parsing
+#' grep output or other delimited text data.
+#' 
 #' @param x Character vector to split
-#' @param column.names Names for the resulting columns
-#' @param split Delimiter to split on
-#' @param resulting.columns Number of columns to create
-#' @param fixed Whether to use fixed string matching
-#' @return data.table with split columns
+#' @param column.names Names for the resulting columns (optional)
+#' @param split Delimiter to split on (default: ":")
+#' @param resulting.columns Number of columns to create (default: 3)
+#' @param fixed Whether to use fixed string matching (default: TRUE)
+#' 
+#' @return A data.table with split columns. Column names are automatically assigned
+#'   as V1, V2, V3, etc. unless custom names are provided via \code{column.names}.
+#' 
+#' @examples
+#' # Split grep-like output with colon delimiter
+#' data <- c("file.txt:15:error message", "file.txt:23:warning message")
+#' result <- split.columns(data, resulting.columns = 3)
+#' print(result)
+#' 
+#' # With custom column names
+#' result_named <- split.columns(data, 
+#'                              column.names = c("filename", "line", "message"),
+#'                              resulting.columns = 3)
+#' print(result_named)
+#' 
+#' # Split into 2 columns (combining remaining elements)
+#' result_2col <- split.columns(data, resulting.columns = 2)
+#' print(result_2col)
+#' 
 #' @export
 split.columns <- function(x, column.names = NA, split = ":", 
                          resulting.columns = 3, fixed = TRUE) {
@@ -77,7 +101,25 @@ split.columns <- function(x, column.names = NA, split = ":",
 }
 
 #' Check if grep is available on the system
-#' @return A list with 'available' logical indicating if grep is available
+#' 
+#' This function checks whether the grep command-line utility is available on the current
+#' system. On Windows, it automatically detects Git for Windows installation or WSL (Windows
+#' Subsystem for Linux) to provide grep functionality. On Unix-like systems, it checks
+#' for the standard grep command.
+#' 
+#' @return A list with two components:
+#'   \item{available}{Logical indicating if grep is available on the system}
+#'   \item{path}{Character string with the path to the grep executable, or NULL if not found}
+#' 
+#' @examples
+#' # Check if grep is available
+#' grep_status <- check_grep_availability()
+#' if (grep_status$available) {
+#'   cat("grep is available at:", grep_status$path, "\n")
+#' } else {
+#'   cat("grep is not available on this system\n")
+#' }
+#' 
 #' @export
 check_grep_availability <- function() {
   available <- FALSE
@@ -134,10 +176,31 @@ check_grep_availability <- function() {
 }
 
 #' Build grep command string
-#' @param pattern Pattern to search for
-#' @param files Files to search in
-#' @param options Options string for grep
-#' @return Command string
+#' 
+#' Constructs a safe and properly formatted grep command string for system execution.
+#' This function handles input sanitization to prevent command injection and ensures
+#' proper quoting of patterns and file paths. It's designed to work with the
+#' \code{safe_system_call} function for secure command execution.
+#' 
+#' @param pattern Pattern to search for (will be automatically quoted)
+#' @param files Files to search in (can be a single file or vector of files)
+#' @param options Options string for grep (e.g., "-i" for case-insensitive)
+#' 
+#' @return A properly formatted command string ready for system execution
+#' 
+#' @examples
+#' # Basic grep command
+#' cmd <- build_grep_cmd("error", "log.txt")
+#' cat("Command:", cmd, "\n")
+#' 
+#' # With grep options
+#' cmd_verbose <- build_grep_cmd("warning", "*.log", options = "-i -n")
+#' cat("Verbose command:", cmd_verbose, "\n")
+#' 
+#' # Multiple files
+#' cmd_multi <- build_grep_cmd("ERROR", c("file1.txt", "file2.txt"))
+#' cat("Multi-file command:", cmd_multi, "\n")
+#' 
 #' @export
 build_grep_cmd <- function(pattern, files, options = "") {
   # Input validation
@@ -180,9 +243,32 @@ build_grep_cmd <- function(pattern, files, options = "") {
 }
 
 #' Safe system call that handles errors gracefully
-#' @param cmd Command to execute
+#' 
+#' Executes system commands with comprehensive error handling and cross-platform
+#' compatibility. This function automatically detects and uses the appropriate grep
+#' implementation on Windows (Git for Windows or WSL) and provides timeout handling
+#' on Unix-like systems. It's designed to work seamlessly with the grep-related
+#' functions in this package.
+#' 
+#' @param cmd Command to execute (typically built with \code{build_grep_cmd})
 #' @param timeout Timeout in seconds (default: 60) - Note: not used in Windows
-#' @return Result of system call or empty character vector on error
+#' 
+#' @return Result of system call as a character vector, or empty character vector
+#'   on error or timeout
+#' 
+#' @examples
+#' # Safe execution of a grep command
+#' cmd <- build_grep_cmd("error", "log.txt")
+#' result <- safe_system_call(cmd)
+#' if (length(result) > 0) {
+#'   cat("Found", length(result), "matching lines\n")
+#' } else {
+#'   cat("No matches found or command failed\n")
+#' }
+#' 
+#' # With timeout (Unix-like systems only)
+#' result_timeout <- safe_system_call(cmd, timeout = 30)
+#' 
 #' @export
 safe_system_call <- function(cmd, timeout = 60) {
   tryCatch({
@@ -286,7 +372,30 @@ safe_system_call <- function(cmd, timeout = 60) {
 }
 
 #' Get system information
-#' @return List with system information
+#' 
+#' Retrieves basic system information relevant to the grepreaper package functionality.
+#' This includes operating system details and grep availability status, which is
+#' useful for debugging and ensuring compatibility.
+#' 
+#' @return A list containing system information:
+#'   \item{os}{Operating system name (e.g., "Windows", "Linux", "Darwin")}
+#'   \item{release}{OS release version}
+#'   \item{machine}{Machine architecture (e.g., "x86_64")}
+#'   \item{grep_available}{Logical indicating if grep command is available}
+#' 
+#' @examples
+#' # Get system information
+#' sys_info <- get_system_info()
+#' cat("OS:", sys_info$os, "\n")
+#' cat("Grep available:", sys_info$grep_available, "\n")
+#' 
+#' # Check if package will work on this system
+#' if (sys_info$grep_available) {
+#'   cat("grepreaper should work on this system\n")
+#' } else {
+#'   cat("grep not available - some functions may not work\n")
+#' }
+#' 
 #' @export
 get_system_info <- function() {
   info <- list(
@@ -299,8 +408,31 @@ get_system_info <- function() {
 }
 
 #' Check if a file is binary
+#' 
+#' Determines whether a file appears to be binary by examining the first 1024 bytes
+#' for common binary file characteristics. This function is useful for avoiding
+#' attempts to process binary files with text-based functions, which could cause
+#' errors or unexpected behavior.
+#' 
 #' @param file_path Path to the file to check
-#' @return Logical indicating if the file appears to be binary
+#' 
+#' @return Logical indicating if the file appears to be binary. Returns FALSE for
+#'   empty files or if the file cannot be read.
+#' 
+#' @examples
+#' # Check if a file is binary
+#' is_binary <- is_binary_file("data.csv")
+#' if (is_binary) {
+#'   cat("File appears to be binary - use appropriate reader\n")
+#' } else {
+#'   cat("File appears to be text-based\n")
+#' }
+#' 
+#' # Check multiple files
+#' files <- c("text.txt", "image.png", "data.csv")
+#' binary_status <- sapply(files, is_binary_file)
+#' print(binary_status)
+#' 
 #' @export
 is_binary_file <- function(file_path) {
   tryCatch({
@@ -327,9 +459,37 @@ is_binary_file <- function(file_path) {
 }
 
 #' Performance monitoring function for grepreaper operations
-#' @param expr Expression to evaluate and monitor
-#' @param show_details Logical; if TRUE, show detailed performance metrics
-#' @return List with performance metrics
+#' 
+#' Tracks execution time and memory usage of expressions, providing detailed
+#' performance metrics for grepreaper operations. This is useful for benchmarking
+#' different approaches and identifying performance bottlenecks in data processing
+#' workflows.
+#' 
+#' @param expr Expression to evaluate and monitor (use curly braces for multiple statements)
+#' @param show_details Logical; if TRUE, displays detailed performance metrics to console
+#' 
+#' @return A list containing performance metrics:
+#'   \item{execution_time_seconds}{Execution time in seconds}
+#'   \item{memory_used_mb}{Memory usage in megabytes}
+#'   \item{timestamp}{Timestamp when monitoring completed}
+#' 
+#' @examples
+#' # Monitor a simple operation
+#' perf <- monitor_performance({
+#'   result <- grep_read(files = "data.csv", pattern = "test")
+#' }, show_details = TRUE)
+#' 
+#' # Monitor multiple operations
+#' perf_multi <- monitor_performance({
+#'   data1 <- grep_read(files = "file1.csv", pattern = "error")
+#'   data2 <- grep_read(files = "file2.csv", pattern = "warning")
+#'   combined <- rbind(data1, data2)
+#' })
+#' 
+#' # Access specific metrics
+#' cat("Operation took:", round(perf_multi$execution_time_seconds, 3), "seconds\n")
+#' cat("Memory used:", round(perf_multi$memory_used_mb, 2), "MB\n")
+#' 
 #' @export
 monitor_performance <- function(expr, show_details = FALSE) {
   # Record start time and memory
