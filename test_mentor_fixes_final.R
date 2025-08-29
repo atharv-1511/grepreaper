@@ -35,7 +35,7 @@ cat("✓ Package installed from GitHub\n")
 cat("\n4. Verifying installation...\n")
 library(grepreaper)
 cat("✓ Package loaded successfully\n")
-cat("✓ Package version:", packageVersion("grepreaper"), "\n\n")
+cat("✓ Package version:", as.character(packageVersion("grepreaper")), "\n\n")
 
 # ============================================================================
 # STEP 2: Test all mentor feedback fixes
