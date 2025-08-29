@@ -201,7 +201,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     }
     
     options_str <- paste(options, collapse = " ")
-    cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str)
+    cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed)
     return(cmd)
   }
 

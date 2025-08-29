@@ -186,6 +186,7 @@ check_grep_availability <- function() {
 #' @param pattern Pattern to search for (will be automatically quoted)
 #' @param files Files to search in (can be a single file or vector of files)
 #' @param options Options string for grep (e.g., "-i" for case-insensitive)
+#' @param fixed Logical; if TRUE, pattern is treated as a literal string (not escaped)
 #' 
 #' @return A properly formatted command string ready for system execution
 #' 
@@ -203,7 +204,7 @@ check_grep_availability <- function() {
 #' cat("Multi-file command:", cmd_multi, "\n")
 #' 
 #' @export
-build_grep_cmd <- function(pattern, files, options = "") {
+build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
   # Input validation
   if (!is.character(pattern) || length(pattern) != 1) {
     stop("'pattern' must be a single character string")
@@ -216,7 +217,10 @@ build_grep_cmd <- function(pattern, files, options = "") {
   }
   
   # Sanitize inputs to prevent command injection
-  pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape dangerous characters
+  # Only escape if not using fixed string matching
+  if (!fixed) {
+    pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape dangerous characters
+  }
   
   # Handle file paths more carefully to avoid hidden file issues
   files <- sapply(files, function(file) {
