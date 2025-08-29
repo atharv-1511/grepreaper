@@ -493,7 +493,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             }
           }
         }  # Close the if (pattern == "") block
-                } else {
+        } else {
           # Use grep for pattern matching (original behavior)
           # Check if the command returns any results first
           result <- safe_system_call(cmd)
@@ -549,7 +549,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           
           # Create data.table from grep results
           if (length(result) > 0) {
-          # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
+            # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
           # This prevents data corruption when metadata is present
           if (show_line_numbers || include_filename) {
             # Vectorized colon counting for format detection
@@ -829,12 +829,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             # Remove any leading path separators
             dt[, source_file := sub("^[\\\\/]+", "", source_file)]
             
-                      # CRITICAL FIX: For grep pattern matching, line numbers already contain
-          # the original line numbers from source files (from grep -n output)
-          if (show_line_numbers && "line_number" %in% names(dt)) {
-            # Sort by source file and original line number for consistent output
-            data.table::setorder(dt, source_file, line_number)
-          }
+            # CRITICAL FIX: For grep pattern matching, line numbers already contain
+            # the original line numbers from source files (from grep -n output)
+            if (show_line_numbers && "line_number" %in% names(dt)) {
+              # Sort by source file and original line number for consistent output
+              data.table::setorder(dt, source_file, line_number)
+            }
             
             # FIX 3: If user doesn't want filename displayed, remove the column
             if (!include_filename) {
@@ -859,6 +859,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             if (col %in% names(dt)) {
               dt[dt[[col]] == "", (col) := NA_character_]
             }
+          }
           }
         }
       }  # Close the else block for pattern != ''
