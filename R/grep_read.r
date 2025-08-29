@@ -563,7 +563,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             # This prevents data corruption when metadata is present
             if (show_line_numbers || include_filename) {
               # Vectorized colon counting for format detection
-            colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
+              colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
             
             # Determine format based on colon count in first line
             first_colon_count <- colon_counts[1]
