@@ -339,23 +339,6 @@ safe_system_call <- function(cmd, timeout = 60) {
           }
         }
         
-        # If no Git grep found, try to use Windows Subsystem for Linux (WSL) grep
-        if (!git_grep_found) {
-          wsl_result <- tryCatch({
-            system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
-          }, error = function(e) NULL, warning = function(w) NULL)
-          
-          if (!is.null(wsl_result) && length(wsl_result) > 0) {
-            # Cache WSL grep for future use
-            options(grepreaper.cached_grep_path = "wsl grep")
-            cmd <- sub("^grep\\s+", "wsl grep ", cmd)
-            if (getOption("grepreaper.show_progress", FALSE)) {
-              message("Using WSL grep (cached): ", cmd)
-            }
-            git_grep_found <- TRUE
-          }
-        }
-        
         # If still no Git grep found, try to use native Windows grep
         if (!git_grep_found) {
           native_grep_result <- tryCatch({
