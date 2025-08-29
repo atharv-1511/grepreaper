@@ -351,7 +351,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           result_dt <- data.table::data.table(match = result)
         }
       }
-         } else if (count_only) {
+    } else if (count_only) {
        # CRITICAL FIX: Fix count_only parsing for mentor feedback
        result <- safe_system_call(cmd)
        
