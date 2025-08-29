@@ -499,8 +499,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       }  # Close the if (pattern == "") block
     } else {
       # Use grep for pattern matching (original behavior)
-        # Check if the command returns any results first
-        result <- safe_system_call(cmd)
+      # Check if the command returns any results first
+      result <- safe_system_call(cmd)
         
         # Progress indicator (only when explicitly requested)
         if (show_progress) {
