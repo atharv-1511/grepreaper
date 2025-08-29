@@ -402,9 +402,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       args <- list(...)
       args$skip <- NULL  # Remove skip parameter when using cmd
 
-        # Check if we have an empty pattern - if so, read files directly
-        if (pattern == "") {
-          # Read files directly without grep when pattern is empty
+      # Check if we have an empty pattern - if so, read files directly
+      if (pattern == "") {
+        # Read files directly without grep when pattern is empty
           if (length(files) == 1) {
             # Single file - read directly
             dt <- do.call(data.table::fread, c(list(files[1], header = header,
@@ -492,7 +492,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               dt[, source_file := NULL]
             }
           }
-        }  # Close the if (pattern == "") block
         } else {
           # Use grep for pattern matching (original behavior)
           # Check if the command returns any results first
@@ -550,9 +549,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           # Create data.table from grep results
           if (length(result) > 0) {
             # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
-          # This prevents data corruption when metadata is present
-          if (show_line_numbers || include_filename) {
-            # Vectorized colon counting for format detection
+            # This prevents data corruption when metadata is present
+            if (show_line_numbers || include_filename) {
+              # Vectorized colon counting for format detection
             colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
             
             # Determine format based on colon count in first line
@@ -860,7 +859,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               dt[dt[[col]] == "", (col) := NA_character_]
             }
           }
-          }
         }
       }  # Close the else block for pattern != ''
 
@@ -868,8 +866,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     }
 
     # FIX 2: Apply nrows limit after processing when using patterns
-    if (is.finite(nrows) && nrows > 0 && !is.null(result_dt) && 
-        data.table::is.data.table(result_dt) && nrow(result_dt) > 0) {
+    if (is.finite(nrows) && nrows > 0 && !is.null(result_dt) && data.table::is.data.table(result_dt) && nrow(result_dt) > 0) {
       # Limit rows to the requested number
       result_dt <- result_dt[1:min(nrows, nrow(result_dt))]
     }
