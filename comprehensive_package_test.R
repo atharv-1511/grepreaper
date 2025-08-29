@@ -16,10 +16,15 @@ cat("=== STEP 1: Installing Latest Package ===\n\n")
 # Remove current package if exists
 cat("1. Removing current grepreaper package...\n")
 tryCatch({
+  # First detach if loaded
+  if ("package:grepreaper" %in% search()) {
+    detach("package:grepreaper", unload = TRUE)
+    cat("✓ Package detached\n")
+  }
   remove.packages("grepreaper")
   cat("✓ Package removed successfully\n")
 }, error = function(e) {
-  cat("ℹ Package not currently installed\n")
+  cat("ℹ Package not currently installed or couldn't be removed\n")
 })
 
 # Install devtools if needed
@@ -33,14 +38,25 @@ if (!require(devtools, quietly = TRUE)) {
 
 # Install from GitHub
 cat("\n3. Installing latest grepreaper from GitHub...\n")
-devtools::install_github("https://github.com/atharv-1511/grepreaper/")
-cat("✓ Package installed from GitHub\n")
+tryCatch({
+  devtools::install_github("https://github.com/atharv-1511/grepreaper/")
+  cat("✓ Package installed from GitHub\n")
+}, error = function(e) {
+  cat("✗ Installation failed:", e$message, "\n")
+  cat("Trying to continue with existing package...\n")
+})
 
 # Verify installation
 cat("\n4. Verifying installation...\n")
-library(grepreaper)
-cat("✓ Package loaded successfully\n")
-cat("✓ Package version:", as.character(packageVersion("grepreaper")), "\n\n")
+tryCatch({
+  library(grepreaper)
+  cat("✓ Package loaded successfully\n")
+  cat("✓ Package version:", as.character(packageVersion("grepreaper")), "\n\n")
+}, error = function(e) {
+  cat("✗ Package loading failed:", e$message, "\n")
+  cat("Please install the package manually and restart R session\n")
+  stop("Package installation failed")
+})
 
 # ============================================================================
 # STEP 2: Load required packages and setup
