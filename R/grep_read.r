@@ -561,7 +561,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           if (length(result) > 0) {
             # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
             # This prevents data corruption when metadata is present
-                        if (show_line_numbers || include_filename) {
+            if (show_line_numbers || include_filename) {
               # Vectorized colon counting for format detection
               colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
             
