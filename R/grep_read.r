@@ -324,7 +324,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   options_str <- paste(options, collapse = " ")
 
   # Build the command
-  cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str)
+  cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed)
 
   # --- Main logic: run grep and process output ---
   result_dt <- NULL
@@ -384,9 +384,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             result_dt <- data.table::data.table(source_file = source_file,
                                                count = count_val)
             
-            # CRITICAL FIX: If include_filename = FALSE, remove the source_file column
+            # CRITICAL FIX: If include_filename = FALSE or NULL, remove the source_file column
             # even though we needed it for parsing multiple files
-            if (!is.null(include_filename) && !include_filename) {
+            if (is.null(include_filename) || !include_filename) {
               result_dt[, source_file := NULL]
             }
           } else {
