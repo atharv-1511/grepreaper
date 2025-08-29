@@ -365,7 +365,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         # Handle both single and multiple file scenarios
         # CRITICAL FIX: When we have multiple files, we ALWAYS get filename:count format
         # due to the -H flag being added automatically
-        if (length(files) == 1 && !include_filename && !any(grepl(":", result, fixed = TRUE))) {
+        
+        # Check if we should parse filename:count format
+        should_parse_filename_count <- (length(files) > 1) || include_filename || any(grepl(":", result, fixed = TRUE))
+        
+        if (!should_parse_filename_count) {
           # Single file without filename and no colons - just count
           result_dt <- data.table::data.table(count = as.integer(result))
         } else {
