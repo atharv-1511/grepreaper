@@ -348,11 +348,35 @@ safe_system_call <- function(cmd, timeout = 60) {
           if (!is.null(native_grep_result) && length(native_grep_result) > 0) {
             # Cache native Windows grep for future use
             options(grepreaper.cached_grep_path = "grep")
-            # No need to modify cmd since 'grep' is already in PATH
-            if (getOption("grepreaper.show_progress", FALSE)) {
-              message("Using native Windows grep (cached): ", cmd)
+            # Test if the command actually works
+            test_cmd <- sub("^grep\\s+", "grep ", cmd)
+            test_result <- tryCatch({
+              system(test_cmd, intern = TRUE, ignore.stderr = TRUE)
+            }, error = function(e) NULL, warning = function(w) NULL)
+            
+            if (!is.null(test_result)) {
+              # Native grep works, use it
+              cmd <- test_cmd
+              if (getOption("grepreaper.show_progress", FALSE)) {
+                message("Using native Windows grep (cached): ", cmd)
+              }
+              git_grep_found <- TRUE
+            } else {
+              # Native grep doesn't work, try to find it in PATH
+              where_grep <- tryCatch({
+                system("where grep", intern = TRUE, ignore.stderr = TRUE)
+              }, error = function(e) NULL, warning = function(w) NULL)
+              
+              if (!is.null(where_grep) && length(where_grep) > 0) {
+                grep_path <- where_grep[1]
+                cmd <- sub("^grep\\s+", paste0("\"", grep_path, "\" "), cmd)
+                options(grepreaper.cached_grep_path = grep_path)
+                if (getOption("grepreaper.show_progress", FALSE)) {
+                  message("Using native Windows grep from PATH: ", cmd)
+                }
+                git_grep_found <- TRUE
+              }
             }
-            git_grep_found <- TRUE
           }
         }
         
