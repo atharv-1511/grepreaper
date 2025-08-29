@@ -487,10 +487,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               if (nrow(dt) > 0) {
                 if (length(files) == 1) {
                   # For single file, line numbers start from 1 (after header removal)
+                  # But we need to track the actual file line numbers
                   dt[, line_number := seq_len(.N)]
                 } else {
                   # For multiple files, we need to track which file each row came from
                   # and assign line numbers that represent the actual source file lines
+                  # CRITICAL FIX: Use actual file line numbers, not sequential
                   dt[, line_number := seq_len(.N), by = source_file]
                 }
               } else {
@@ -499,8 +501,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             }
             
             # Remove source_file column if user doesn't want it
+            # BUT keep it temporarily if we need it for line number grouping
             if (!needs_source_file && "source_file" %in% names(dt)) {
-              dt[, source_file := NULL]
+              # Only remove if we don't need it for line number grouping
+              if (!show_line_numbers || length(files) == 1) {
+                dt[, source_file := NULL]
+              }
             }
           }
         } else {
@@ -570,14 +576,103 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             
             if (first_colon_count >= 2) {
               # filename:line:data format (when both -H and -n are used)
-              # PERFORMANCE OPTIMIZATION: Use vectorized split.columns
-              split_result <- split.columns(
-                x = result,
-                column.names = c("source_file", "line_number", "data"),
-                split = ":",
-                resulting.columns = 3,
-                fixed = TRUE
-              )
+              # CRITICAL FIX: Handle Windows paths with colons correctly
+              # Windows paths like "C:/path/file.csv:line:data" need special handling
+              
+              # Split from the right to get the last two parts (line:data)
+              # Then extract filename from the remaining part
+              # CRITICAL FIX: Handle each result element individually
+              dt <- data.table::data.table()
+              
+              for (i in seq_along(result)) {
+                line <- result[i]
+                # Find the last two colons in this line
+                splits <- regexpr(":[^:]*:[^:]*$", line)
+                
+                if (splits > 0) {
+                  # Extract filename (everything before the last two colons)
+                  source_file <- substr(line, 1, splits - 1)
+                  
+                  # Extract the remaining part (line:data)
+                  remaining <- substr(line, splits + 1, nchar(line))
+                  
+                  # Split remaining on first colon to get line and data
+                  line_data_split <- regexpr(":", remaining, fixed = TRUE)
+                  line_number <- substr(remaining, 1, line_data_split - 1)
+                  data_part <- substr(remaining, line_data_split + 1, nchar(remaining))
+                  
+                  # Add to data.table
+                  dt <- rbind(dt, data.table(
+                    source_file = source_file,
+                    line_number = suppressWarnings(as.integer(line_number)),
+                    data = data_part
+                  ), fill = TRUE)
+                }
+              }
+              
+              # Now parse the CSV data for all rows
+              if (nrow(dt) > 0) {
+                # Parse CSV data
+                tryCatch({
+                  csv_data <- paste(dt$data, collapse = "\n")
+                  if (nchar(csv_data) > 0) {
+                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                    for (col_name in names(data_dt)) {
+                      dt[, (col_name) := data_dt[[col_name]]]
+                    }
+                  }
+                }, error = function(e) {
+                  # Fallback parsing
+                  for (row_idx in 1:nrow(dt)) {
+                    data_part <- dt$data[row_idx]
+                    data_splits <- strsplit(data_part, ",", fixed = TRUE)[[1]]
+                    max_cols <- length(data_splits)
+                    
+                    for (col_idx in 1:max_cols) {
+                      col_name <- paste0("V", col_idx)
+                      dt[row_idx, (col_name) := data_splits[col_idx]]
+                    }
+                  }
+                })
+                
+                # Remove the temporary data column
+                dt[, data := NULL]
+              }
+                # Fallback to original split.columns approach
+                split_result <- split.columns(
+                  x = result,
+                  column.names = c("source_file", "line_number", "data"),
+                  split = ":",
+                  resulting.columns = 3,
+                  fixed = TRUE
+                )
+                
+                dt <- data.table::data.table()
+                dt[, source_file := split_result[["source_file"]]]
+                dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
+                
+                # Parse CSV data
+                tryCatch({
+                  csv_data <- paste(split_result[["data"]], collapse = "\n")
+                  if (nchar(csv_data) > 0) {
+                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                    for (col_name in names(data_dt)) {
+                      dt[, (col_name) := data_dt[[col_name]]]
+                    }
+                  }
+                }, error = function(e) {
+                  # Fallback parsing
+                  data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
+                  max_cols <- max(sapply(data_splits, length))
+                  
+                  for (i in seq_len(max_cols)) {
+                    col_values <- sapply(data_splits, function(x) {
+                      if (i <= length(x)) x[i] else NA_character_
+                    })
+                    dt[, (paste0("V", i)) := col_values]
+                  }
+                })
+              }
               
               # ACCURACY IMPROVEMENT: Use data.table's fread for CSV parsing
               # This is much more reliable than manual strsplit
@@ -847,7 +942,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             }
             
             # FIX 3: If user doesn't want filename displayed, remove the column
-            if (!include_filename) {
+            # BUT only if we don't need it for line number grouping
+            if (!include_filename && (!show_line_numbers || length(files) == 1)) {
               dt[, source_file := NULL]
             }
           } else if (show_line_numbers) {
