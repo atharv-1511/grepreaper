@@ -2,7 +2,52 @@
 # This script tests ALL the issues mentioned in the mentor's feedback
 # Using the specific file paths provided by the user
 
-library(data.table)
+# ============================================================================
+# STEP 1: Remove current package and install latest from GitHub
+# ============================================================================
+
+cat("=== Installing latest grepreaper package from GitHub ===\n\n")
+
+# 1. Remove current package
+cat("1. Removing current grepreaper package...\n")
+tryCatch({
+  remove.packages("grepreaper")
+  cat("✓ Package removed successfully\n")
+}, error = function(e) {
+  cat("ℹ Package not currently installed\n")
+})
+
+# 2. Install devtools if needed
+cat("\n2. Checking/installing devtools...\n")
+if (!require(devtools, quietly = TRUE)) {
+  install.packages("devtools")
+  cat("✓ devtools installed\n")
+} else {
+  cat("✓ devtools already available\n")
+}
+
+# 3. Install directly from GitHub
+cat("\n3. Installing latest grepreaper from GitHub...\n")
+devtools::install_github("https://github.com/atharv-1511/grepreaper/")
+cat("✓ Package installed from GitHub\n")
+
+# 4. Verify installation
+cat("\n4. Verifying installation...\n")
+library(grepreaper)
+cat("✓ Package loaded successfully\n")
+cat("✓ Package version:", packageVersion("grepreaper"), "\n\n")
+
+# ============================================================================
+# STEP 2: Test all mentor feedback fixes
+# ============================================================================
+
+cat("=== Testing All Mentor Feedback Fixes ===\n\n")
+
+# Load required packages
+if (!require(data.table)) {
+  install.packages("data.table")
+  library(data.table)
+}
 
 # Define the file paths
 DIAMONDS_FILE <- "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv"
