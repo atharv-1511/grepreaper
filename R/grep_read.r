@@ -404,155 +404,151 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
 
         # Check if we have an empty pattern - if so, read files directly
         if (pattern == "") {
-
-        # Read files directly without grep when pattern is empty
-        if (length(files) == 1) {
-          # Single file - read directly
-          dt <- do.call(data.table::fread, c(list(files[1], header = header,
-                                                 nrows = nrows), args))
-        } else {
-          # Multiple files - read each separately and combine
-          all_results <- list()
-          for (file in files) {
-            file_dt <- do.call(data.table::fread, c(list(file, header = header,
-                                                        nrows = nrows), args))
-            all_results[[length(all_results) + 1]] <- file_dt
-          }
-          dt <- data.table::rbindlist(all_results, fill = TRUE)
-
-        }
-
-        # For empty pattern reads, we need to set column names if not provided
-        # Store the original column names before adding metadata columns
-        if (is.null(col.names) && header && nrow(dt) > 0) {
-          # Store the original column names before any metadata columns are added
-          col.names <- names(dt)
-        }
-        
-        # Note: fread with header = TRUE automatically removes header rows,
-        # so dt already contains only data rows. No additional header removal needed.
-
-        # CRITICAL FIX: Add metadata columns for direct file reads when requested
-        # For multiple files, we need source_file temporarily for line number grouping
-        # but we'll remove it later if include_filename = FALSE
-        needs_source_file <- (!is.null(include_filename) && include_filename)
-        temp_source_file_needed <- (length(files) > 1 && show_line_numbers)
-        
-        if (show_line_numbers || needs_source_file || temp_source_file_needed) {
-          # Add source file column first (needed for line number grouping)
-          if (needs_source_file || temp_source_file_needed) {
-            if (length(files) == 1) {
-              if (nrow(dt) > 0) {
-                dt[, source_file := basename(files[1])]
-              } else {
-                dt[, source_file := character(0)]
-              }
-            } else {
-              # For multiple files, we need to track which file each row came from
-              if (nrow(dt) > 0) {
-                # CRITICAL FIX: Properly assign source_file for each row
-                # We need to track which rows came from which file after rbindlist
-                source_file_vector <- character(nrow(dt))
-                current_row <- 1
-                
-                for (i in seq_along(files)) {
-                  file_rows <- nrow(all_results[[i]])
-                  if (file_rows > 0) {
-                    # Assign the filename to the appropriate range of rows
-                    end_row <- current_row + file_rows - 1
-                    source_file_vector[current_row:end_row] <- basename(files[i])
-                    current_row <- end_row + 1
-                  }
-                }
-                
-                dt[, source_file := source_file_vector]
-
-              } else {
-                dt[, source_file := character(0)]
-              }
+          # Read files directly without grep when pattern is empty
+          if (length(files) == 1) {
+            # Single file - read directly
+            dt <- do.call(data.table::fread, c(list(files[1], header = header,
+                                                   nrows = nrows), args))
+          } else {
+            # Multiple files - read each separately and combine
+            all_results <- list()
+            for (file in files) {
+              file_dt <- do.call(data.table::fread, c(list(file, header = header,
+                                                          nrows = nrows), args))
+              all_results[[length(all_results) + 1]] <- file_dt
             }
+            dt <- data.table::rbindlist(all_results, fill = TRUE)
+          }
+
+          # For empty pattern reads, we need to set column names if not provided
+          # Store the original column names before adding metadata columns
+          if (is.null(col.names) && header && nrow(dt) > 0) {
+            # Store the original column names before any metadata columns are added
+            col.names <- names(dt)
           }
           
-          # CRITICAL FIX: For empty pattern reads, line numbers should represent the actual
-          # line numbers in the source files (after header removal), not sequential row numbers
-          if (show_line_numbers) {
-            if (nrow(dt) > 0) {
+          # Note: fread with header = TRUE automatically removes header rows,
+          # so dt already contains only data rows. No additional header removal needed.
+
+          # CRITICAL FIX: Add metadata columns for direct file reads when requested
+          # For multiple files, we need source_file temporarily for line number grouping
+          # but we'll remove it later if include_filename = FALSE
+          needs_source_file <- (!is.null(include_filename) && include_filename)
+          temp_source_file_needed <- (length(files) > 1 && show_line_numbers)
+          
+          if (show_line_numbers || needs_source_file || temp_source_file_needed) {
+            # Add source file column first (needed for line number grouping)
+            if (needs_source_file || temp_source_file_needed) {
               if (length(files) == 1) {
-                # For single file, line numbers start from 1 (after header removal)
-                dt[, line_number := seq_len(.N)]
+                if (nrow(dt) > 0) {
+                  dt[, source_file := basename(files[1])]
+                } else {
+                  dt[, source_file := character(0)]
+                }
               } else {
                 # For multiple files, we need to track which file each row came from
-                # and assign line numbers that represent the actual source file lines
-                dt[, line_number := seq_len(.N), by = source_file]
-
+                if (nrow(dt) > 0) {
+                  # CRITICAL FIX: Properly assign source_file for each row
+                  # We need to track which rows came from which file after rbindlist
+                  source_file_vector <- character(nrow(dt))
+                  current_row <- 1
+                  
+                  for (i in seq_along(files)) {
+                    file_rows <- nrow(all_results[[i]])
+                    if (file_rows > 0) {
+                      # Assign the filename to the appropriate range of rows
+                      end_row <- current_row + file_rows - 1
+                      source_file_vector[current_row:end_row] <- basename(files[i])
+                      current_row <- end_row + 1
+                    }
+                  }
+                  
+                  dt[, source_file := source_file_vector]
+                } else {
+                  dt[, source_file := character(0)]
+                }
               }
-            } else {
-              dt[, line_number := integer(0)]
+            }
+            
+            # CRITICAL FIX: For empty pattern reads, line numbers should represent the actual
+            # line numbers in the source files (after header removal), not sequential row numbers
+            if (show_line_numbers) {
+              if (nrow(dt) > 0) {
+                if (length(files) == 1) {
+                  # For single file, line numbers start from 1 (after header removal)
+                  dt[, line_number := seq_len(.N)]
+                } else {
+                  # For multiple files, we need to track which file each row came from
+                  # and assign line numbers that represent the actual source file lines
+                  dt[, line_number := seq_len(.N), by = source_file]
+                }
+              } else {
+                dt[, line_number := integer(0)]
+              }
+            }
+            
+            # Remove source_file column if user doesn't want it
+            if (!needs_source_file && "source_file" %in% names(dt)) {
+              dt[, source_file := NULL]
             }
           }
-          
-          # Remove source_file column if user doesn't want it
-          if (!needs_source_file && "source_file" %in% names(dt)) {
-            dt[, source_file := NULL]
+        }  # Close the if (pattern == "") block
+                } else {
+          # Use grep for pattern matching (original behavior)
+          # Check if the command returns any results first
+          result <- safe_system_call(cmd)
+        
+          # Progress indicator (only when explicitly requested)
+          if (show_progress) {
+            cat("Processing grep results...\n")
           }
-        }
-      }  # Close the if (pattern == "") block
-    } else {
-      # Use grep for pattern matching (original behavior)
-      # Check if the command returns any results first
-      result <- safe_system_call(cmd)
         
-        # Progress indicator (only when explicitly requested)
-        if (show_progress) {
-          cat("Processing grep results...\n")
-        }
-        
-        if (length(result) == 0) {
-          # No matches found, return empty data.table with appropriate structure
-          if (!is.null(col.names)) {
-            result_dt <- data.table::as.data.table(
-              stats::setNames(lapply(col.names, function(x) character(0)), col.names)
-            )
-          } else {
-            # Try to determine column structure from header
-            result_dt <- tryCatch({
-              header_line <- readLines(files[1], n = 1)
-              if (length(header_line) > 0) {
-                header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
-                data.table::as.data.table(
-                  stats::setNames(lapply(header_cols, function(x) character(0)),
-                          header_cols)
-                )
-              } else {
+          if (length(result) == 0) {
+            # No matches found, return empty data.table with appropriate structure
+            if (!is.null(col.names)) {
+              result_dt <- data.table::as.data.table(
+                stats::setNames(lapply(col.names, function(x) character(0)), col.names)
+              )
+            } else {
+              # Try to determine column structure from header
+              result_dt <- tryCatch({
+                header_line <- readLines(files[1], n = 1)
+                if (length(header_line) > 0) {
+                  header_cols <- strsplit(header_line[1], ",", fixed = TRUE)[[1]]
+                  data.table::as.data.table(
+                    stats::setNames(lapply(header_cols, function(x) character(0)),
+                            header_cols)
+                  )
+                } else {
+                  data.table::data.table()
+                }
+              }, error = function(e) {
                 data.table::data.table()
-              }
-            }, error = function(e) {
-              data.table::data.table()
-            })
+              })
+            }
+            
+            # CRITICAL FIX: Add metadata columns even for empty results
+            # This ensures the test for special characters doesn't fail
+            if (show_line_numbers) {
+              result_dt[, line_number := integer(0)]
+            }
+            if (!is.null(include_filename) && include_filename) {
+              result_dt[, source_file := character(0)]
+            }
+            
+            return(result_dt[])
           }
-          
-          # CRITICAL FIX: Add metadata columns even for empty results
-          # This ensures the test for special characters doesn't fail
-          if (show_line_numbers) {
-            result_dt[, line_number := integer(0)]
-          }
-          if (!is.null(include_filename) && include_filename) {
-            result_dt[, source_file := character(0)]
-          }
-          
-          return(result_dt[])
-        }
 
-        # CRITICAL FIX: When using grep with pattern matching, we need to ensure
-        # that the result lines are properly parsed to extract metadata
-        # The grep output format depends on the options used:
-        # - With -H and -n: filename:line:data
-        # - With -H only: filename:data  
-        # - With -n only: line:data
-        # - Without flags: just data
-        
-        # Create data.table from grep results
-        if (length(result) > 0) {
+          # CRITICAL FIX: When using grep with pattern matching, we need to ensure
+          # that the result lines are properly parsed to extract metadata
+          # The grep output format depends on the options used:
+          # - With -H and -n: filename:line:data
+          # - With -H only: filename:data  
+          # - With -n only: line:data
+          # - Without flags: just data
+          
+          # Create data.table from grep results
+          if (length(result) > 0) {
           # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
           # This prevents data corruption when metadata is present
           if (show_line_numbers || include_filename) {
