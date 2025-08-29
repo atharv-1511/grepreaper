@@ -303,19 +303,19 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   if (only_matching) options <- c(options, "-o")
   if (count_only) options <- c(options, "-c")
   
-  # CRITICAL FIX: Always add -H when we need metadata
-  # `-H` prints the filename. It's needed for include_filename, but also for
-  # count_only when multiple files are provided, to distinguish counts.
-  # Also, when we have multiple files and want line numbers, we need -H to get
-  # filename:line:data format
-  # CRITICAL FIX: For count_only with multiple files, ALWAYS add -H to get filename:count format
-  if ((!is.null(include_filename) && include_filename) || (count_only && length(files) > 1) || 
+  # CRITICAL FIX: Only add -H when explicitly needed
+  # `-H` prints the filename. It's needed for:
+  # 1. include_filename = TRUE (user explicitly wants filenames)
+  # 2. count_only = TRUE with multiple files (to distinguish counts)
+  # 3. show_line_numbers = TRUE with multiple files (to distinguish line numbers)
+  # CRITICAL FIX: Don't add -H when user explicitly sets include_filename = FALSE
+  if ((!is.null(include_filename) && include_filename) || 
+      (count_only && length(files) > 1) || 
       (show_line_numbers && length(files) > 1)) {
     options <- c(options, "-H")
   }
 
-  # CRITICAL FIX: Always add -H for single files when we need metadata
-  # This ensures consistent behavior for line numbers and filename inclusion
+  # CRITICAL FIX: Add -H for single files only when metadata is explicitly requested
   if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
     options <- c(options, "-H")
   }
@@ -496,7 +496,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             dt[, source_file := NULL]
           }
         }
-      } else {
+      }  # Close the if (pattern == "") block
+    } else {
         # Use grep for pattern matching (original behavior)
         # Check if the command returns any results first
         result <- safe_system_call(cmd)
