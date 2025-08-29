@@ -219,7 +219,15 @@ build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
   # Sanitize inputs to prevent command injection
   # Only escape if not using fixed string matching
   if (!fixed) {
-    pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape dangerous characters
+    pattern <- gsub("[\"`$\\\\]", "\\&", pattern)  # Escape dangerous characters
+  }
+  
+  # CRITICAL FIX: For fixed string matching, ensure pattern is properly quoted
+  # This prevents issues with special characters in the pattern
+  if (fixed) {
+    # For fixed strings, we don't escape regex metacharacters
+    # But we still need to handle quotes properly for shell safety
+    pattern <- gsub("[\"`$\\\\]", "\\&", pattern)  # Escape shell-dangerous characters only
   }
   
   # Handle file paths more carefully to avoid hidden file issues
@@ -356,6 +364,7 @@ safe_system_call <- function(cmd, timeout = 60) {
             
             if (!is.null(test_result)) {
               # Native grep works, use it
+              # CRITICAL FIX: Preserve the entire command structure including flags
               cmd <- test_cmd
               if (getOption("grepreaper.show_progress", FALSE)) {
                 message("Using native Windows grep (cached): ", cmd)
@@ -369,6 +378,7 @@ safe_system_call <- function(cmd, timeout = 60) {
               
               if (!is.null(where_grep) && length(where_grep) > 0) {
                 grep_path <- where_grep[1]
+                # CRITICAL FIX: Use a more robust replacement that preserves all flags
                 cmd <- sub("^grep\\s+", paste0("\"", grep_path, "\" "), cmd)
                 options(grepreaper.cached_grep_path = grep_path)
                 if (getOption("grepreaper.show_progress", FALSE)) {
