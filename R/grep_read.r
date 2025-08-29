@@ -29,7 +29,7 @@
 #' @param ... Additional arguments passed to fread.
 #' @return A data.table with different structures based on the options:
 #'   - Default: Data columns with original types preserved
-#'   - show_line_numbers=TRUE: Additional 'line_number' column (integer)
+#'   - show_line_numbers=TRUE: Additional 'line_number' column (integer) with source file line numbers
 #'   - include_filename=TRUE: Additional 'source_file' column (character)
 #'   - only_matching=TRUE: Single 'match' column with matched substrings
 #'   - count_only=TRUE: 'source_file' and 'count' columns
@@ -59,8 +59,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      only_matching = FALSE, count_only = FALSE, nrows = Inf,
                      skip = 0, header = TRUE, col.names = NULL,
                      include_filename = NULL, search_column = NULL, show_progress = FALSE, ...) {
-  # Ensure data.table is available
-  if (!requireNamespace("data.table", quietly = TRUE)) {
+  # Ensure data.table is available - CRITICAL FIX for mentor feedback
+  if (!require(data.table, quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed. ",
          "Please install it via install.packages('data.table').")
   }
@@ -139,7 +139,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           result_data[, source_file := basename(files[1])]
         }
         
-        # FIX 1: Add brackets to return statement
         return(result_data[])
       } else {
         # No matches found, return empty data.table with same structure
@@ -150,7 +149,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
         if (!is.null(include_filename) && include_filename) {
           empty_dt[, source_file := character(0)]
         }
-        # FIX 1: Add brackets to return statement
         return(empty_dt[])
       }
     } else {
@@ -190,11 +188,14 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     if (only_matching) options <- c(options, "-o")
     if (count_only) options <- c(options, "-c")
     
-    if (!is.null(include_filename) && include_filename || (count_only && length(files) > 1) || 
+    # CRITICAL FIX: Always add -H when we need metadata
+    # CRITICAL FIX: For count_only with multiple files, ALWAYS add -H to get filename:count format
+    if ((!is.null(include_filename) && include_filename) || (count_only && length(files) > 1) || 
         (show_line_numbers && length(files) > 1)) {
       options <- c(options, "-H")
     }
     
+    # CRITICAL FIX: Always add -H for single files when we need metadata
     if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
       options <- c(options, "-H")
     }
@@ -285,7 +286,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     }
   }
 
-  # FIX 3: Set default for include_filename based on number of files
+  # CRITICAL FIX: Set default for include_filename based on number of files
   # Only set to TRUE if explicitly requested or if we need it for metadata
   if (is.null(include_filename)) {
     include_filename <- FALSE  # Default to FALSE to avoid interference with pattern matching
@@ -307,14 +308,15 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   # count_only when multiple files are provided, to distinguish counts.
   # Also, when we have multiple files and want line numbers, we need -H to get
   # filename:line:data format
-  if (include_filename || (count_only && length(files) > 1) || 
+  # CRITICAL FIX: For count_only with multiple files, ALWAYS add -H to get filename:count format
+  if ((!is.null(include_filename) && include_filename) || (count_only && length(files) > 1) || 
       (show_line_numbers && length(files) > 1)) {
     options <- c(options, "-H")
   }
 
   # CRITICAL FIX: Always add -H for single files when we need metadata
   # This ensures consistent behavior for line numbers and filename inclusion
-  if ((show_line_numbers || include_filename) && length(files) == 1) {
+  if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
     options <- c(options, "-H")
   }
 
@@ -348,22 +350,50 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           result_dt <- data.table::data.table(match = result)
         }
       }
-    } else if (count_only) {
-      # Only return counts of matches per file
-      result <- safe_system_call(cmd)
-      if (length(result) == 0) {
-        result_dt <- data.table::data.table(file = character(0),
-                                           count = integer(0))
-      } else {
-        if (include_filename) {
-          # Parse filename:count format
-          splits <- strsplit(result, ":", fixed = TRUE)
-          source_file <- sapply(splits, function(x) x[1])
-          count_val <- sapply(splits, function(x) as.integer(x[2]))
-          result_dt <- data.table::data.table(source_file = source_file,
-                                             count = count_val)
-        } else {
+         } else if (count_only) {
+       # CRITICAL FIX: Fix count_only parsing for mentor feedback
+       result <- safe_system_call(cmd)
+       
+
+       
+       if (length(result) == 0) {
+         result_dt <- data.table::data.table(source_file = character(0),
+                                            count = integer(0))
+       } else {
+        # CRITICAL FIX: Properly parse filename:count format
+        # Handle both single and multiple file scenarios
+        # CRITICAL FIX: When we have multiple files, we ALWAYS get filename:count format
+        # due to the -H flag being added automatically
+        if (length(files) == 1 && !include_filename && !any(grepl(":", result, fixed = TRUE))) {
+          # Single file without filename and no colons - just count
           result_dt <- data.table::data.table(count = as.integer(result))
+        } else {
+          # Multiple files or filename requested or result contains colons - parse filename:count
+          # This handles both explicit include_filename=TRUE and automatic -H for multiple files
+          # CRITICAL FIX: Check if result contains colons (filename:count format)
+          if (any(grepl(":", result, fixed = TRUE))) {
+            # Parse filename:count format
+            # CRITICAL FIX: Handle both single and multiple result strings
+            # Each element in result should be "filename:count"
+            # CRITICAL FIX: On Windows, filenames contain colons (C:/path), so we need to split from the right
+            # Find the last colon in each result string and split there
+            splits <- regexpr(":[^:]*$", result)  # Find last colon
+            source_file <- ifelse(splits > 0, substr(result, 1, splits - 1), result)
+            count_val <- ifelse(splits > 0, as.integer(substr(result, splits + 1, nchar(result))), as.integer(result))
+            result_dt <- data.table::data.table(source_file = source_file,
+                                               count = count_val)
+          } else {
+            # No colons found, treat as simple count (fallback)
+            # CRITICAL FIX: For multiple files, we should always get filename:count format
+            # If we don't, there might be an issue with the grep command
+            if (length(files) > 1) {
+              # This shouldn't happen, but let's handle it gracefully
+              warning("Expected filename:count format for multiple files but got simple count")
+              result_dt <- data.table::data.table(count = as.integer(result))
+            } else {
+              result_dt <- data.table::data.table(count = as.integer(result))
+            }
+          }
         }
       }
     } else {
@@ -374,6 +404,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
 
         # Check if we have an empty pattern - if so, read files directly
         if (pattern == "") {
+
         # Read files directly without grep when pattern is empty
         if (length(files) == 1) {
           # Single file - read directly
@@ -388,14 +419,20 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             all_results[[length(all_results) + 1]] <- file_dt
           }
           dt <- data.table::rbindlist(all_results, fill = TRUE)
+
         }
 
         # For empty pattern reads, we need to set column names if not provided
+        # Store the original column names before adding metadata columns
         if (is.null(col.names) && header && nrow(dt) > 0) {
+          # Store the original column names before any metadata columns are added
           col.names <- names(dt)
         }
         
-                # CRITICAL FIX: Add metadata columns for direct file reads when requested
+        # Note: fread with header = TRUE automatically removes header rows,
+        # so dt already contains only data rows. No additional header removal needed.
+
+        # CRITICAL FIX: Add metadata columns for direct file reads when requested
         # For multiple files, we need source_file temporarily for line number grouping
         # but we'll remove it later if include_filename = FALSE
         needs_source_file <- (!is.null(include_filename) && include_filename)
@@ -413,22 +450,41 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             } else {
               # For multiple files, we need to track which file each row came from
               if (nrow(dt) > 0) {
-                file_indices <- rep(seq_along(files), sapply(all_results, nrow))
-                dt[, source_file := basename(files[file_indices])]
+                # CRITICAL FIX: Properly assign source_file for each row
+                # We need to track which rows came from which file after rbindlist
+                source_file_vector <- character(nrow(dt))
+                current_row <- 1
+                
+                for (i in seq_along(files)) {
+                  file_rows <- nrow(all_results[[i]])
+                  if (file_rows > 0) {
+                    # Assign the filename to the appropriate range of rows
+                    end_row <- current_row + file_rows - 1
+                    source_file_vector[current_row:end_row] <- basename(files[i])
+                    current_row <- end_row + 1
+                  }
+                }
+                
+                dt[, source_file := source_file_vector]
+
               } else {
                 dt[, source_file := character(0)]
               }
             }
           }
           
-          # Add line numbers after source_file is available
+          # CRITICAL FIX: For empty pattern reads, line numbers should represent the actual
+          # line numbers in the source files (after header removal), not sequential row numbers
           if (show_line_numbers) {
             if (nrow(dt) > 0) {
               if (length(files) == 1) {
+                # For single file, line numbers start from 1 (after header removal)
                 dt[, line_number := seq_len(.N)]
               } else {
-                # For multiple files, use proper grouping to ensure line numbers restart for each file
+                # For multiple files, we need to track which file each row came from
+                # and assign line numbers that represent the actual source file lines
                 dt[, line_number := seq_len(.N), by = source_file]
+
               }
             } else {
               dt[, line_number := integer(0)]
@@ -483,7 +539,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             result_dt[, source_file := character(0)]
           }
           
-          # FIX 1: Add brackets to return statement
           return(result_dt[])
         }
 
@@ -521,6 +576,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               # This is much more reliable than manual strsplit
               dt <- data.table::data.table()
               dt[, source_file := split_result[["source_file"]]]
+              # CRITICAL FIX: Preserve original line numbers from source files
               dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
               
               # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing instead of manual loops
@@ -596,6 +652,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 
                 # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing
                 dt <- data.table::data.table()
+                # CRITICAL FIX: Preserve original line numbers from source files
                 dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
                 
                 tryCatch({
@@ -714,6 +771,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                                                         "line_number"))
           }
 
+          # Ensure we only use data column names, not metadata column names
+          # The col.names should only contain the original data column names
           names_to_set <- col.names[seq_len(min(length(col.names),
                                                length(data_cols_indices)))]
 
@@ -730,6 +789,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             header_rows <- logical(nrow(dt))
             for (i in seq_len(nrow(dt))) {
               row_vals <- as.character(dt[i, data_cols, with = FALSE])
+              # Only check against the actual data column names, not metadata column names
               header_rows[i] <- any(row_vals %in% names_to_set)
             }
 
@@ -765,23 +825,20 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           if ("source_file" %in% names(dt)) {
             # Clean up source file paths
             dt[, source_file := basename(as.character(source_file))]
-
+            
             # Remove any drive letter prefix (Windows paths)
             dt[, source_file := sub("^[A-Za-z]:", "", source_file)]
-
+            
             # Remove any leading path separators
             dt[, source_file := sub("^[\\\\/]+", "", source_file)]
-
-            # Group by source file for line numbers
-            if (show_line_numbers) {
-              # First sort by source file and original line number
-              if ("line_number" %in% names(dt)) {
-                data.table::setorder(dt, source_file, line_number)
-              }
-              # Then renumber within each file
-              dt[, line_number := seq_len(.N), by = source_file]
-            }
-
+            
+                      # CRITICAL FIX: For grep pattern matching, line numbers already contain
+          # the original line numbers from source files (from grep -n output)
+          if (show_line_numbers && "line_number" %in% names(dt)) {
+            # Sort by source file and original line number for consistent output
+            data.table::setorder(dt, source_file, line_number)
+          }
+            
             # FIX 3: If user doesn't want filename displayed, remove the column
             if (!include_filename) {
               dt[, source_file := NULL]
@@ -790,22 +847,14 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             # Simple sequential numbering for single file
             if ("line_number" %in% names(dt)) {
               data.table::setorder(dt, line_number)
+            } else {
+              dt[, line_number := seq_len(.N)]
             }
-            dt[, line_number := seq_len(.N)]
           }
 
           # Ensure integer type for line numbers
           if ("line_number" %in% names(dt)) {
             dt[, line_number := as.integer(line_number)]
-          }
-
-          # Remove all-NA rows using safe data.table approach
-          if (nrow(dt) > 0) {
-            # Use rowSums for better performance and safety
-            na_counts <- rowSums(is.na(dt))
-            if (any(na_counts == ncol(dt))) {
-              dt <- dt[na_counts < ncol(dt)]
-            }
           }
 
           # Convert empty strings to NA for better handling
@@ -822,13 +871,13 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
 
     # FIX 2: Apply nrows limit after processing when using patterns
     if (is.finite(nrows) && nrows > 0 && !is.null(result_dt) && 
-        is.data.table(result_dt) && nrow(result_dt) > 0) {
+        data.table::is.data.table(result_dt) && nrow(result_dt) > 0) {
       # Limit rows to the requested number
       result_dt <- result_dt[1:min(nrows, nrow(result_dt))]
     }
 
     # FIX 4: Ensure consistent column ordering
-    if (!is.null(result_dt) && is.data.table(result_dt) && nrow(result_dt) > 0) {
+    if (!is.null(result_dt) && data.table::is.data.table(result_dt) && nrow(result_dt) > 0) {
       # Get the original column order from a shallow copy of the first file
       tryCatch({
         if (length(files) > 0) {
@@ -858,7 +907,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       })
     }
 
-    # FIX 1: Add brackets to return statement
     return(result_dt[])
   }, error = function(e) {
     stop(sprintf("Error in grep_read: %s", e$message))

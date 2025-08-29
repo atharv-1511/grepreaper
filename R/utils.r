@@ -35,7 +35,8 @@ utils::globalVariables(c(":=", ".N", "V1", "V2", "V3"))
 #' @export
 split.columns <- function(x, column.names = NA, split = ":", 
                          resulting.columns = 3, fixed = TRUE) {
-  if (!requireNamespace("data.table", quietly = TRUE)) {
+  # CRITICAL FIX: Add require(data.table) for mentor feedback
+  if (!require(data.table, quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed.")
   }
  
