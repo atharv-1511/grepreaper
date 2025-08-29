@@ -219,7 +219,7 @@ build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
   # Sanitize inputs to prevent command injection
   # Only escape if not using fixed string matching
   if (!fixed) {
-    pattern <- gsub("[\"`$\\\\]", "\\&", pattern)  # Escape dangerous characters
+    pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape dangerous characters
   }
   
   # CRITICAL FIX: For fixed string matching, ensure pattern is properly quoted
@@ -227,7 +227,7 @@ build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
   if (fixed) {
     # For fixed strings, we don't escape regex metacharacters
     # But we still need to handle quotes properly for shell safety
-    pattern <- gsub("[\"`$\\\\]", "\\&", pattern)  # Escape shell-dangerous characters only
+    pattern <- gsub("[\"`$\\\\]", "\\\\&", pattern)  # Escape shell-dangerous characters only
   }
   
   # Handle file paths more carefully to avoid hidden file issues
