@@ -190,6 +190,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     
     # CRITICAL FIX: Always add -H when we need metadata
     # CRITICAL FIX: For count_only with multiple files, ALWAYS add -H to get filename:count format
+    # This is needed even when include_filename = FALSE to distinguish between different files
     if ((!is.null(include_filename) && include_filename) || (count_only && length(files) > 1) || 
         (show_line_numbers && length(files) > 1)) {
       options <- c(options, "-H")
@@ -382,6 +383,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             count_val <- ifelse(splits > 0, as.integer(substr(result, splits + 1, nchar(result))), as.integer(result))
             result_dt <- data.table::data.table(source_file = source_file,
                                                count = count_val)
+            
+            # CRITICAL FIX: If include_filename = FALSE, remove the source_file column
+            # even though we needed it for parsing multiple files
+            if (!is.null(include_filename) && !include_filename) {
+              result_dt[, source_file := NULL]
+            }
           } else {
             # No colons found, treat as simple count (fallback)
             # CRITICAL FIX: For multiple files, we should always get filename:count format
