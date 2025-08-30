@@ -107,14 +107,14 @@ tryCatch({
   cat("❌ Error loading grepreaper:", e$message, "\n")
   cat("Trying to source functions directly...\n")
   
-  # Fallback: provide helpful error message
-cat("❌ Cannot load grepreaper package\n")
-cat("The package installation failed. Please check:\n")
-cat("1. Internet connection\n")
-cat("2. R version compatibility\n")
-cat("3. Write permissions to R library directory\n")
-cat("4. Try running the script again\n\n")
-stop("grepreaper package installation failed")
+    # Fallback: provide helpful error message
+  cat("❌ Cannot load grepreaper package\n")
+  cat("The package installation failed. Please check:\n")
+  cat("1. Internet connection\n")
+  cat("2. R version compatibility\n")
+  cat("3. Write permissions to R library directory\n")
+  cat("4. Try running the script again\n\n")
+  stop("grepreaper package installation failed")
 })
 
 # ============================================================================
