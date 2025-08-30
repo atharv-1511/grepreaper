@@ -191,8 +191,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     # CRITICAL FIX: Always add -H when we need metadata
     # CRITICAL FIX: For count_only with multiple files, ALWAYS add -H to get filename:count format
     # This is needed even when include_filename = FALSE to distinguish between different files
+    # BUT: Don't add -H for show_line_numbers with multiple files if user explicitly set include_filename = FALSE
     if ((!is.null(include_filename) && include_filename) || (count_only && length(files) > 1) || 
-        (show_line_numbers && length(files) > 1)) {
+        (show_line_numbers && length(files) > 1 && (is.null(include_filename) || include_filename))) {
       options <- c(options, "-H")
     }
     
@@ -308,11 +309,22 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   # `-H` prints the filename. It's needed for:
   # 1. include_filename = TRUE (user explicitly wants filenames)
   # 2. count_only = TRUE with multiple files (to distinguish counts)
-  # 3. show_line_numbers = TRUE with multiple files (to distinguish line numbers)
+  # 3. show_line_numbers = TRUE with multiple files (to distinguish line numbers) - BUT ONLY if include_filename is not explicitly FALSE
   # CRITICAL FIX: Don't add -H when user explicitly sets include_filename = FALSE
-  if ((!is.null(include_filename) && include_filename) || 
-      (count_only && length(files) > 1) || 
-      (show_line_numbers && length(files) > 1)) {
+  should_add_H <- FALSE
+  
+  if (!is.null(include_filename) && include_filename) {
+    # User explicitly wants filenames
+    should_add_H <- TRUE
+  } else if (count_only && length(files) > 1) {
+    # Need filenames to distinguish counts from multiple files
+    should_add_H <- TRUE
+  } else if (show_line_numbers && length(files) > 1 && (is.null(include_filename) || include_filename)) {
+    # Need filenames to distinguish line numbers from multiple files, but only if user hasn't explicitly said no
+    should_add_H <- TRUE
+  }
+  
+  if (should_add_H) {
     options <- c(options, "-H")
   }
 
@@ -487,13 +499,28 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               if (nrow(dt) > 0) {
                 if (length(files) == 1) {
                   # For single file, line numbers start from 1 (after header removal)
-                  # But we need to track the actual file line numbers
                   dt[, line_number := seq_len(.N)]
                 } else {
                   # For multiple files, we need to track which file each row came from
                   # and assign line numbers that represent the actual source file lines
-                  # CRITICAL FIX: Use actual file line numbers, not sequential
-                  dt[, line_number := seq_len(.N), by = source_file]
+                  # CRITICAL FIX: Calculate actual line numbers from source files
+                  # We need to account for header rows that were removed by fread
+                  header_offset <- if (header) 1 else 0
+                  
+                  # For multiple files, assign line numbers that represent actual source file lines
+                  # Each file starts from line 1 (or line 2 if header present)
+                  dt[, line_number := {
+                    # Calculate line numbers for each file
+                    sapply(seq_len(.N), function(i) {
+                      # Find which file this row belongs to
+                      current_file <- source_file[i]
+                      # Find the row position within this file
+                      file_rows <- which(source_file == current_file)
+                      row_in_file <- which(file_rows == i)
+                      # Return actual line number (accounting for header)
+                      row_in_file + header_offset
+                    })
+                  }]
                 }
               } else {
                 dt[, line_number := integer(0)]
@@ -501,12 +528,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             }
             
             # Remove source_file column if user doesn't want it
-            # BUT keep it temporarily if we need it for line number grouping
             if (!needs_source_file && "source_file" %in% names(dt)) {
-              # Only remove if we don't need it for line number grouping
-              if (!show_line_numbers || length(files) == 1) {
-                dt[, source_file := NULL]
-              }
+              dt[, source_file := NULL]
             }
           }
         } else {
@@ -569,144 +592,91 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             # This prevents data corruption when metadata is present
             if (show_line_numbers || include_filename) {
               # Vectorized colon counting for format detection
-              colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
+            colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
             
             # Determine format based on colon count in first line
             first_colon_count <- colon_counts[1]
             
             if (first_colon_count >= 2) {
               # filename:line:data format (when both -H and -n are used)
-              # CRITICAL FIX: Handle Windows paths with colons correctly
-              # Windows paths like "C:/path/file.csv:line:data" need special handling
-              
-              # Split from the right to get the last two parts (line:data)
-              # Then extract filename from the remaining part
-              # CRITICAL FIX: Handle each result element individually
+              # CRITICAL FIX: Manual parsing for filename:line:data format to handle file paths with colons
               dt <- data.table::data.table()
               
+              # Manual parsing of filename:line:data format
               for (i in seq_along(result)) {
-                line <- result[i]
-                # Find the last two colons in this line
-                splits <- regexpr(":[^:]*:[^:]*$", line)
-                
-                if (splits > 0) {
-                  # Extract filename (everything before the last two colons)
-                  source_file <- substr(line, 1, splits - 1)
+                line_data <- result[i]
+                # Find the last two colons to separate filename:line:data
+                # We need to find the last two colons because file paths may contain colons
+                colon_positions <- gregexpr(":", line_data, fixed = TRUE)[[1]]
+                if (length(colon_positions) >= 2) {
+                  # Last colon separates line:data
+                  last_colon <- colon_positions[length(colon_positions)]
+                  # Second-to-last colon separates filename:line
+                  second_last_colon <- colon_positions[length(colon_positions) - 1]
                   
-                  # Extract the remaining part (line:data)
-                  remaining <- substr(line, splits + 1, nchar(line))
-                  
-                  # Split remaining on first colon to get line and data
-                  line_data_split <- regexpr(":", remaining, fixed = TRUE)
-                  line_number <- substr(remaining, 1, line_data_split - 1)
-                  data_part <- substr(remaining, line_data_split + 1, nchar(remaining))
+                  filename <- substr(line_data, 1, second_last_colon - 1)
+                  line_num <- substr(line_data, second_last_colon + 1, last_colon - 1)
+                  data_part <- substr(line_data, last_colon + 1, nchar(line_data))
                   
                   # Add to data.table
-                  dt <- rbind(dt, data.table(
-                    source_file = source_file,
-                    line_number = suppressWarnings(as.integer(line_number)),
-                    data = data_part
-                  ), fill = TRUE)
-                }
-              }
-              
-              # Now parse the CSV data for all rows
-              if (nrow(dt) > 0) {
-                # Parse CSV data
-                tryCatch({
-                  csv_data <- paste(dt$data, collapse = "\n")
-                  if (nchar(csv_data) > 0) {
-                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
-                    for (col_name in names(data_dt)) {
-                      dt[, (col_name) := data_dt[[col_name]]]
-                    }
-                  }
-                }, error = function(e) {
-                  # Fallback parsing
-                  for (row_idx in 1:nrow(dt)) {
-                    data_part <- dt$data[row_idx]
-                    data_splits <- strsplit(data_part, ",", fixed = TRUE)[[1]]
-                    max_cols <- length(data_splits)
-                    
-                    for (col_idx in 1:max_cols) {
-                      col_name <- paste0("V", col_idx)
-                      dt[row_idx, (col_name) := data_splits[col_idx]]
-                    }
-                  }
-                })
-                
-                # Remove the temporary data column
-                dt[, data := NULL]
-              }
-                # Fallback to original split.columns approach
-                split_result <- split.columns(
-                  x = result,
-                  column.names = c("source_file", "line_number", "data"),
-                  split = ":",
-                  resulting.columns = 3,
-                  fixed = TRUE
-                )
-                
-                dt <- data.table::data.table()
-                dt[, source_file := split_result[["source_file"]]]
-                dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
-                
-                # Parse CSV data
-                tryCatch({
-                  csv_data <- paste(split_result[["data"]], collapse = "\n")
-                  if (nchar(csv_data) > 0) {
-                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
-                    for (col_name in names(data_dt)) {
-                      dt[, (col_name) := data_dt[[col_name]]]
-                    }
-                  }
-                }, error = function(e) {
-                  # Fallback parsing
-                  data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
-                  max_cols <- max(sapply(data_splits, length))
-                  
-                  for (i in seq_len(max_cols)) {
-                    col_values <- sapply(data_splits, function(x) {
-                      if (i <= length(x)) x[i] else NA_character_
-                    })
-                    dt[, (paste0("V", i)) := col_values]
-                  }
-                })
-              }
-              
-              # ACCURACY IMPROVEMENT: Use data.table's fread for CSV parsing
-              # This is much more reliable than manual strsplit
-              dt <- data.table::data.table()
-              dt[, source_file := split_result[["source_file"]]]
-              # CRITICAL FIX: Preserve original line numbers from source files
-              dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
-              
-              # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing instead of manual loops
-              tryCatch({
-                # Parse CSV data using fread for accuracy and speed
-                csv_data <- paste(split_result[["data"]], collapse = "\n")
-                if (nchar(csv_data) > 0) {
-                  data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
-                  # Add data columns efficiently
-                  for (col_name in names(data_dt)) {
-                    dt[, (col_name) := data_dt[[col_name]]]
+                  if (i == 1) {
+                    dt[, source_file := filename]
+                    dt[, line_number := as.integer(line_num)]
+                  } else {
+                    dt <- rbindlist(list(dt, data.table::data.table(source_file = filename, line_number = as.integer(line_num))), fill = TRUE)
                   }
                 }
-              }, error = function(e) {
-                # Fallback to manual parsing if fread fails
-                data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
-                max_cols <- max(sapply(data_splits, length))
-                
-                for (i in seq_len(max_cols)) {
-                  col_values <- sapply(data_splits, function(x) {
-                    if (i <= length(x)) x[i] else NA_character_
-                  })
-                  dt[, (paste0("V", i)) := col_values]
+              }
+              
+              # CRITICAL FIX: Parse each data line individually to avoid CSV parsing issues
+              # This ensures that each line is properly parsed as separate columns
+              
+              # Extract data parts from the original result
+              data_parts <- sapply(result, function(line_data) {
+                colon_positions <- gregexpr(":", line_data, fixed = TRUE)[[1]]
+                if (length(colon_positions) >= 2) {
+                  last_colon <- colon_positions[length(colon_positions)]
+                  substr(line_data, last_colon + 1, nchar(line_data))
+                } else {
+                  line_data
                 }
               })
               
+              data_splits <- strsplit(data_parts, ",", fixed = TRUE)
+              max_cols <- max(sapply(data_splits, length))
+              
+              # Create columns for each data field
+              for (i in seq_len(max_cols)) {
+                col_values <- sapply(data_splits, function(x) {
+                  if (i <= length(x)) x[i] else NA_character_
+                })
+                # Use a unique column name that won't conflict with line_number
+                col_name <- paste0("data_col_", i)
+                dt[, (col_name) := col_values]
+              }
+              
+              # CRITICAL FIX: Try to convert numeric columns
+              for (col_name in names(dt)) {
+                if (!col_name %in% c("source_file", "line_number")) {
+                  vals <- dt[[col_name]]
+                  if (is.character(vals)) {
+                    # Try numeric conversion
+                    num_vals <- suppressWarnings(as.numeric(vals))
+                    if (!all(is.na(num_vals))) {
+                      dt[, (col_name) := num_vals]
+                    }
+                  }
+                }
+              }
+              
+              # CRITICAL FIX: Remove source_file column if user doesn't want it
+              if (!is.null(include_filename) && !include_filename) {
+                dt[, source_file := NULL]
+              }
+              
             } else if (first_colon_count == 1) {
               # Check if it's filename:data or line:data
+              cat("DEBUG: Using single colon format\n")
               if (include_filename) {
                 # filename:data format
                 split_result <- split.columns(
@@ -744,6 +714,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 
               } else if (show_line_numbers) {
                 # line:data format
+                cat("DEBUG: Using line:data format\n")
+                # CRITICAL FIX: Use the original split.columns approach but fix the parsing
                 split_result <- split.columns(
                   x = result,
                   column.names = c("line_number", "data"),
@@ -757,26 +729,32 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 # CRITICAL FIX: Preserve original line numbers from source files
                 dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
                 
-                tryCatch({
-                  csv_data <- paste(split_result[["data"]], collapse = "\n")
-                  if (nchar(csv_data) > 0) {
-                    data_dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
-                    for (col_name in names(data_dt)) {
-                      dt[, (col_name) := data_dt[[col_name]]]
+                # CRITICAL FIX: Parse each data line individually to avoid CSV parsing issues
+                # This ensures that each line is properly parsed as separate columns
+                data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
+                max_cols <- max(sapply(data_splits, length))
+                
+                # Create columns for each data field
+                for (i in seq_len(max_cols)) {
+                  col_values <- sapply(data_splits, function(x) {
+                    if (i <= length(x)) x[i] else NA_character_
+                  })
+                  dt[, (paste0("V", i)) := col_values]
+                }
+                
+                # CRITICAL FIX: Try to convert numeric columns
+                for (col_name in names(dt)) {
+                  if (col_name != "line_number") {
+                    vals <- dt[[col_name]]
+                    if (is.character(vals)) {
+                      # Try numeric conversion
+                      num_vals <- suppressWarnings(as.numeric(vals))
+                      if (!all(is.na(num_vals))) {
+                        dt[, (col_name) := num_vals]
+                      }
                     }
                   }
-                }, error = function(e) {
-                  # Fallback parsing
-                  data_splits <- strsplit(split_result[["data"]], ",", fixed = TRUE)
-                  max_cols <- max(sapply(data_splits, length))
-                  
-                  for (i in seq_len(max_cols)) {
-                    col_values <- sapply(data_splits, function(x) {
-                      if (i <= length(x)) x[i] else NA_character_
-                    })
-                    dt[, (paste0("V", i)) := col_values]
-                  }
-                })
+                }
               }
             } else {
               # No metadata, just CSV data
@@ -942,8 +920,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
             }
             
             # FIX 3: If user doesn't want filename displayed, remove the column
-            # BUT only if we don't need it for line number grouping
-            if (!include_filename && (!show_line_numbers || length(files) == 1)) {
+            if (!include_filename) {
               dt[, source_file := NULL]
             }
           } else if (show_line_numbers) {
