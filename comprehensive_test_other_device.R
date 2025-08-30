@@ -43,21 +43,59 @@ for (pkg in required_packages) {
   }
 }
 
-# Install grepreaper from source
-cat("Installing grepreaper from source...\n")
+# Install grepreaper from GitHub
+cat("Installing grepreaper from GitHub...\n")
 tryCatch({
-  # Check if we're in the grepreaper directory
-  if (file.exists("DESCRIPTION") && file.exists("R/")) {
-    cat("Building and installing grepreaper from source...\n")
-    install.packages(".", repos = NULL, type = "source")
-    cat("✅ grepreaper installed successfully from source\n\n")
-  } else {
-    cat("⚠️  Not in grepreaper source directory, skipping source install\n")
-    cat("Please ensure you're in the grepreaper directory with R/ and DESCRIPTION files\n\n")
-  }
+  # Install directly from GitHub URL
+  cat("Installing from GitHub URL: https://github.com/atharv-1511/grepreaper/\n")
+  
+  # Use install.packages with the GitHub URL
+  install.packages("https://github.com/atharv-1511/grepreaper/", 
+                   repos = NULL, 
+                   type = "source")
+  cat("✅ grepreaper installed successfully from GitHub\n\n")
+  
 }, error = function(e) {
-  cat("❌ Error installing grepreaper:", e$message, "\n")
-  cat("Please ensure you're in the grepreaper directory and have write permissions\n\n")
+  cat("❌ Error installing from GitHub URL:", e$message, "\n")
+  cat("Trying alternative installation method...\n")
+  
+  # Fallback: try direct GitHub download and install
+  tryCatch({
+    cat("Trying direct GitHub download...\n")
+    temp_dir <- tempdir()
+    download_url <- "https://github.com/atharv-1511/grepreaper/archive/refs/heads/main.zip"
+    zip_file <- file.path(temp_dir, "grepreaper.zip")
+    
+    cat("Downloading from:", download_url, "\n")
+    download.file(download_url, zip_file, mode = "wb")
+    cat("Download completed. Extracting...\n")
+    
+    unzip(zip_file, exdir = temp_dir)
+    
+    # Find the extracted directory
+    extracted_dir <- list.dirs(temp_dir, full.names = TRUE)
+    grepreaper_dir <- extracted_dir[grepl("grepreaper", extracted_dir)][1]
+    
+    cat("Found extracted directory:", grepreaper_dir, "\n")
+    
+    if (!is.na(grepreaper_dir) && file.exists(file.path(grepreaper_dir, "DESCRIPTION"))) {
+      cat("Installing from downloaded source...\n")
+      install.packages(grepreaper_dir, repos = NULL, type = "source")
+      cat("✅ grepreaper installed successfully from downloaded source\n\n")
+    } else {
+      stop("Could not find grepreaper source in downloaded files")
+    }
+    
+    # Clean up
+    unlink(zip_file)
+    unlink(grepreaper_dir, recursive = TRUE)
+    
+  }, error = function(e2) {
+    cat("❌ All installation methods failed:\n")
+    cat("  GitHub URL error:", e$message, "\n")
+    cat("  Download error:", e2$message, "\n")
+    cat("Please check your internet connection and try again.\n\n")
+  })
 })
 
 # Load the package
@@ -69,14 +107,14 @@ tryCatch({
   cat("❌ Error loading grepreaper:", e$message, "\n")
   cat("Trying to source functions directly...\n")
   
-  # Fallback: source functions directly
-  if (file.exists("R/utils.r") && file.exists("R/grep_read.r")) {
-    source("R/utils.r")
-    source("R/grep_read.r")
-    cat("✅ Functions sourced directly from R/ directory\n\n")
-  } else {
-    stop("Cannot load grepreaper package or source functions directly")
-  }
+  # Fallback: provide helpful error message
+cat("❌ Cannot load grepreaper package\n")
+cat("The package installation failed. Please check:\n")
+cat("1. Internet connection\n")
+cat("2. R version compatibility\n")
+cat("3. Write permissions to R library directory\n")
+cat("4. Try running the script again\n\n")
+stop("grepreaper package installation failed")
 })
 
 # ============================================================================
@@ -433,9 +471,10 @@ cat("\n=== TEST COMPLETION ===\n")
 cat("This comprehensive test has verified that all mentor feedback issues\n")
 cat("have been successfully resolved. The package is production-ready.\n")
 cat("\nTo run this test on your device:\n")
-cat("1. Copy this script to your grepreaper directory\n")
+cat("1. Copy this script to any directory on your device\n")
 cat("2. Update the file paths at the top of this script if needed\n")
 cat("3. Run: source('comprehensive_test_other_device.R')\n")
-cat("   (The script will automatically remove, reinstall, and load the package)\n")
+cat("   (The script will automatically remove, reinstall, and load the package from GitHub)\n")
 cat("\nExpected results: All tests should pass with ✅ marks.\n")
-cat("\nNote: This script automatically handles package management for clean testing.\n")
+cat("\nNote: This script automatically handles package management and works on any device.\n")
+cat("It downloads and installs grepreaper directly from GitHub.\n")
