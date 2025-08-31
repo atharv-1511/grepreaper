@@ -27,14 +27,21 @@ proper quoting of patterns and file paths. It's designed to work with the
 \examples{
 # Basic grep command
 cmd <- build_grep_cmd("error", "log.txt")
-cat("Command:", cmd, "\n")
+print(cmd)
 
 # With grep options
 cmd_verbose <- build_grep_cmd("warning", "*.log", options = "-i -n")
-cat("Verbose command:", cmd_verbose, "\n")
+print(cmd_verbose)
 
 # Multiple files
 cmd_multi <- build_grep_cmd("ERROR", c("file1.txt", "file2.txt"))
-cat("Multi-file command:", cmd_multi, "\n")
+print(cmd_multi)
 
+# Fixed string matching (literal search)
+cmd_fixed <- build_grep_cmd("3.14", "data.csv", fixed = TRUE)
+print(cmd_fixed)
+}
+\seealso{
+\code{\link{grep_read}} for reading files with grep,
+\code{\link{safe_system_call}} for executing commands safely
 }

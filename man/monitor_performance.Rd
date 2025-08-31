@@ -28,6 +28,7 @@ workflows.
 perf <- monitor_performance({
   result <- grep_read(files = "data.csv", pattern = "test")
 }, show_details = TRUE)
+print(perf)
 
 # Monitor multiple operations
 perf_multi <- monitor_performance({
@@ -35,9 +36,13 @@ perf_multi <- monitor_performance({
   data2 <- grep_read(files = "file2.csv", pattern = "warning")
   combined <- rbind(data1, data2)
 })
+print(perf_multi)
 
 # Access specific metrics
 cat("Operation took:", round(perf_multi$execution_time_seconds, 3), "seconds\n")
 cat("Memory used:", round(perf_multi$memory_used_mb, 2), "MB\n")
-
+}
+\seealso{
+\code{\link{grep_read}} for reading files with grep,
+\code{\link{check_grep_availability}} for checking grep availability
 }

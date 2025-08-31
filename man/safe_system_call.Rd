@@ -23,16 +23,20 @@ on Unix-like systems. It's designed to work seamlessly with the grep-related
 functions in this package.
 }
 \examples{
-# Safe execution of a grep command
+# Execute a simple command
+result <- safe_system_call("echo 'Hello World'")
+print(result)
+
+# Execute grep command
 cmd <- build_grep_cmd("error", "log.txt")
 result <- safe_system_call(cmd)
-if (length(result) > 0) {
-  cat("Found", length(result), "matching lines\n")
-} else {
-  cat("No matches found or command failed\n")
-}
+print(result)
 
 # With timeout (Unix-like systems only)
 result_timeout <- safe_system_call(cmd, timeout = 30)
-
+print(result_timeout)
+}
+\seealso{
+\code{\link{grep_read}} for reading files with grep,
+\code{\link{build_grep_cmd}} for building grep commands
 }

@@ -21,14 +21,16 @@ useful for debugging and ensuring compatibility.
 \examples{
 # Get system information
 sys_info <- get_system_info()
-cat("OS:", sys_info$os, "\n")
-cat("Grep available:", sys_info$grep_available, "\n")
+print(sys_info)
 
-# Check if package will work on this system
+# Check if grepreaper should work on this system
 if (sys_info$grep_available) {
-  cat("grepreaper should work on this system\n")
+  print("grepreaper should work on this system")
 } else {
-  cat("grep not available - some functions may not work\n")
+  print("grep not available - some functions may not work")
 }
-
+}
+\seealso{
+\code{\link{check_grep_availability}} for detailed grep availability check,
+\code{\link{grep_read}} for reading files with grep
 }

@@ -4,7 +4,7 @@
 \alias{split.columns}
 \title{Split columns based on a delimiter}
 \usage{
-\method{split}{columns}(x, column.names = NA, split = ":", resulting.columns = 3, fixed = TRUE)
+split.columns(x, column.names = NA, split = ":", resulting.columns = 3, fixed = TRUE)
 }
 \arguments{
 \item{x}{Character vector to split}
@@ -41,5 +41,8 @@ print(result_named)
 # Split into 2 columns (combining remaining elements)
 result_2col <- split.columns(data, resulting.columns = 2)
 print(result_2col)
-
+}
+\seealso{
+\code{\link{grep_read}} for reading files with grep,
+\code{\link{build_grep_cmd}} for building grep commands
 }

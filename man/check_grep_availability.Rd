@@ -20,10 +20,16 @@ for the standard grep command.
 \examples{
 # Check if grep is available
 grep_status <- check_grep_availability()
-if (grep_status$available) {
-  cat("grep is available at:", grep_status$path, "\n")
-} else {
-  cat("grep is not available on this system\n")
-}
+print(grep_status)
 
+# Check availability and show path
+if (grep_status$available) {
+  print(paste("grep is available at:", grep_status$path))
+} else {
+  print("grep is not available on this system")
+}
+}
+\seealso{
+\code{\link{grep_read}} for reading files with grep,
+\code{\link{build_grep_cmd}} for building grep commands
 }

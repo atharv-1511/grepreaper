@@ -22,15 +22,14 @@ errors or unexpected behavior.
 \examples{
 # Check if a file is binary
 is_binary <- is_binary_file("data.csv")
-if (is_binary) {
-  cat("File appears to be binary - use appropriate reader\n")
-} else {
-  cat("File appears to be text-based\n")
-}
+print(is_binary)
 
 # Check multiple files
 files <- c("text.txt", "image.png", "data.csv")
 binary_status <- sapply(files, is_binary_file)
 print(binary_status)
-
+}
+\seealso{
+\code{\link{grep_read}} for reading files with grep,
+\code{\link{check_grep_availability}} for checking grep availability
 }
