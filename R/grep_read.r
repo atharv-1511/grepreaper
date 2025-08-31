@@ -59,13 +59,13 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                      only_matching = FALSE, count_only = FALSE, nrows = Inf,
                      skip = 0, header = TRUE, col.names = NULL,
                      include_filename = NULL, search_column = NULL, show_progress = FALSE, ...) {
-  # Ensure data.table is available - CRITICAL FIX for mentor feedback
-  if (!require(data.table, quietly = TRUE)) {
+  # Ensure data.table is available
+  if (!requireNamespace("data.table", quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed. ",
          "Please install it via install.packages('data.table').")
   }
 
-  # CRITICAL FIX: Process search_column BEFORE show_cmd check
+  # Process search_column BEFORE show_cmd check
   # This ensures column-specific search works correctly
   if (!is.null(search_column) && pattern != "") {
     # Handle column-specific search first
@@ -77,7 +77,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
       files <- path.expand(files)
     }
     
-    # CRITICAL: Ensure files is properly set before proceeding
+    # Ensure files is properly set before proceeding
     if (is.null(files) || length(files) == 0) {
       stop("'files' must be a non-empty character vector for search_column functionality")
     }
@@ -92,7 +92,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                    paste(missing_files, collapse = ", ")))
     }
     
-    # CRITICAL FIX: For search_column, we need to read the file and filter
+    # For search_column, we need to read the file and filter
     # This bypasses grep entirely for column-specific search
     
     # Read the file to get column structure
@@ -207,10 +207,8 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     return(cmd)
   }
 
-  # Set progress option
-  if (show_progress) {
-    options(grepreaper.show_progress = TRUE)
-  }
+  # Set progress indicator locally
+  local_show_progress <- show_progress
 
   # --- File selection and validation ---
   # If files is NULL and path is provided, use list.files to get files
@@ -537,9 +535,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           # Check if the command returns any results first
           result <- safe_system_call(cmd)
         
-          # Progress indicator (only when explicitly requested)
-          if (show_progress) {
-            cat("Processing grep results...\n")
+          # Process grep results
+          if (local_show_progress && length(result) > 0) {
+            # Progress indication - return count instead of printing
+            result_count <- length(result)
           }
         
           if (length(result) == 0) {
@@ -676,7 +675,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               
             } else if (first_colon_count == 1) {
               # Check if it's filename:data or line:data
-              cat("DEBUG: Using single colon format\n")
               if (include_filename) {
                 # filename:data format
                 split_result <- split.columns(
@@ -714,8 +712,6 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 
               } else if (show_line_numbers) {
                 # line:data format
-                cat("DEBUG: Using line:data format\n")
-                # CRITICAL FIX: Use the original split.columns approach but fix the parsing
                 split_result <- split.columns(
                   x = result,
                   column.names = c("line_number", "data"),

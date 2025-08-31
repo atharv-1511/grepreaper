@@ -35,8 +35,8 @@ utils::globalVariables(c(":=", ".N", "V1", "V2", "V3"))
 #' @export
 split.columns <- function(x, column.names = NA, split = ":", 
                          resulting.columns = 3, fixed = TRUE) {
-  # CRITICAL FIX: Add require(data.table) for mentor feedback
-  if (!require(data.table, quietly = TRUE)) {
+  # Ensure data.table is available
+  if (!requireNamespace("data.table", quietly = TRUE)) {
     stop("The 'data.table' package is required but not installed.")
   }
  
@@ -290,112 +290,104 @@ safe_system_call <- function(cmd, timeout = 60) {
     
     # PERFORMANCE OPTIMIZATION: Cache grep path detection to avoid repeated file system checks
     # For grep commands on Windows, automatically use Git's grep if available
+    # Use cached grep path if available
+    cached_grep_path <- getOption("grepreaper.cached_grep_path", NULL)
+    
     if (grepl("^grep\\s+", cmd) && Sys.info()["sysname"] == "Windows") {
-      # Check if we already have a cached grep path
-      cached_grep_path <- getOption("grepreaper.cached_grep_path", NULL)
-      
+      # On Windows, try to use cached grep path first
       if (!is.null(cached_grep_path)) {
-        # Use cached path for better performance
-        cmd <- sub("^grep\\s+", paste0("\"", cached_grep_path, "\" "), cmd)
-        if (getOption("grepreaper.show_progress", FALSE)) {
-          message("Using cached Git grep: ", cmd)
-        }
-      } else {
-        # PERFORMANCE OPTIMIZATION: Check multiple possible Git grep locations once
-        git_grep_paths <- c(
-          "C:/Program Files/Git/usr/bin/grep.exe",
-          "C:/Program Files (x86)/Git/usr/bin/grep.exe",
-          "C:/Git/usr/bin/grep.exe"
-        )
-        
-        git_grep_found <- FALSE
-        for (git_grep_path in git_grep_paths) {
-          if (file.exists(git_grep_path)) {
-            # Test if it works
-            test_result <- tryCatch({
-              system(paste0("\"", git_grep_path, "\" --version"), 
-                     intern = TRUE, ignore.stderr = TRUE)
-            }, error = function(e) NULL, warning = function(w) NULL)
-            
-            if (!is.null(test_result) && length(test_result) > 0) {
-              # Cache the working grep path for future use
-              options(grepreaper.cached_grep_path = git_grep_path)
-              cmd <- sub("^grep\\s+", paste0("\"", git_grep_path, "\" "), cmd)
-              if (getOption("grepreaper.show_progress", FALSE)) {
-                message("Using Git's grep (cached): ", cmd)
-              }
-              git_grep_found <- TRUE
-              break
-            }
-          }
-        }
-        
-        # If no Git grep found, try to use Windows Subsystem for Linux (WSL) grep
-        if (!git_grep_found) {
-          wsl_result <- tryCatch({
-            system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
+        message("Using cached Git grep: ", cmd)
+        return(safe_system_call_internal(cmd, timeout))
+      }
+      
+      # Try Git for Windows grep
+      git_grep_paths <- c(
+        "C:/Program Files/Git/usr/bin/grep.exe",
+        "C:/Program Files (x86)/Git/usr/bin/grep.exe",
+        "C:/Git/usr/bin/grep.exe"
+      )
+      
+      for (git_grep_path in git_grep_paths) {
+        if (file.exists(git_grep_path)) {
+          test_result <- tryCatch({
+            system(paste0("\"", git_grep_path, "\" --version"), 
+                   intern = TRUE, ignore.stderr = TRUE)
           }, error = function(e) NULL, warning = function(w) NULL)
           
-          if (!is.null(wsl_result) && length(wsl_result) > 0) {
-            # Cache WSL grep for future use
-            options(grepreaper.cached_grep_path = "wsl grep")
-            cmd <- sub("^grep\\s+", "wsl grep ", cmd)
-            if (getOption("grepreaper.show_progress", FALSE)) {
-              message("Using WSL grep (cached): ", cmd)
-            }
-            git_grep_found <- TRUE
+          if (!is.null(test_result) && length(test_result) > 0) {
+            # Cache the successful path locally
+            local_cached_path <- git_grep_path
+            message("Using Git's grep (cached): ", cmd)
+            return(safe_system_call_internal(cmd, timeout))
           }
-        }
-        
-        # If still no Git grep found, try to use native Windows grep
-        if (!git_grep_found) {
-          native_grep_result <- tryCatch({
-            system("grep --version", intern = TRUE, ignore.stderr = TRUE)
-          }, error = function(e) NULL, warning = function(w) NULL)
-          
-          if (!is.null(native_grep_result) && length(native_grep_result) > 0) {
-            # Cache native Windows grep for future use
-            options(grepreaper.cached_grep_path = "grep")
-            # Test if the command actually works
-            test_cmd <- sub("^grep\\s+", "grep ", cmd)
-            test_result <- tryCatch({
-              system(test_cmd, intern = TRUE, ignore.stderr = TRUE)
-            }, error = function(e) NULL, warning = function(w) NULL)
-            
-            if (!is.null(test_result)) {
-              # Native grep works, use it
-              # CRITICAL FIX: Preserve the entire command structure including flags
-              cmd <- test_cmd
-              if (getOption("grepreaper.show_progress", FALSE)) {
-                message("Using native Windows grep (cached): ", cmd)
-              }
-              git_grep_found <- TRUE
-            } else {
-              # Native grep doesn't work, try to find it in PATH
-              where_grep <- tryCatch({
-                system("where grep", intern = TRUE, ignore.stderr = TRUE)
-              }, error = function(e) NULL, warning = function(w) NULL)
-              
-              if (!is.null(where_grep) && length(where_grep) > 0) {
-                grep_path <- where_grep[1]
-                # CRITICAL FIX: Use a more robust replacement that preserves all flags
-                cmd <- sub("^grep\\s+", paste0("\"", grep_path, "\" "), cmd)
-                options(grepreaper.cached_grep_path = grep_path)
-                if (getOption("grepreaper.show_progress", FALSE)) {
-                  message("Using native Windows grep from PATH: ", cmd)
-                }
-                git_grep_found <- TRUE
-              }
-            }
-          }
-        }
-        
-        # If still no grep found, return empty result with warning
-        if (!git_grep_found) {
-          warning("No grep command available on Windows. Please install Git for Windows, WSL, or ensure grep is in PATH.")
-          return(character(0))
         }
       }
+      
+      # If no Git grep found, try to use Windows Subsystem for Linux (WSL) grep
+      if (!is.null(cached_grep_path)) { # Check if WSL was already cached
+        wsl_result <- tryCatch({
+          system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
+        }, error = function(e) NULL, warning = function(w) NULL)
+        
+        if (!is.null(wsl_result) && length(wsl_result) > 0) {
+          # Cache WSL grep for future use
+          options(grepreaper.cached_grep_path = "wsl grep")
+          cmd <- sub("^grep\\s+", "wsl grep ", cmd)
+          if (getOption("grepreaper.show_progress", FALSE)) {
+            message("Using WSL grep (cached): ", cmd)
+          }
+          return(safe_system_call_internal(cmd, timeout))
+        }
+      }
+      
+      # If still no grep found, try to use native Windows grep
+      if (!is.null(cached_grep_path)) { # Check if native grep was already cached
+        native_grep_result <- tryCatch({
+          system("grep --version", intern = TRUE, ignore.stderr = TRUE)
+        }, error = function(e) NULL, warning = function(w) NULL)
+        
+        if (!is.null(native_grep_result) && length(native_grep_result) > 0) {
+          # Cache native Windows grep for future use
+          options(grepreaper.cached_grep_path = "grep")
+          # Test if the command actually works
+          test_cmd <- sub("^grep\\s+", "grep ", cmd)
+          test_result <- tryCatch({
+            system(test_cmd, intern = TRUE, ignore.stderr = TRUE)
+          }, error = function(e) NULL, warning = function(w) NULL)
+          
+          if (!is.null(test_result)) {
+            # Native grep works, use it
+            # CRITICAL FIX: Preserve the entire command structure including flags
+            cmd <- test_cmd
+            if (getOption("grepreaper.show_progress", FALSE)) {
+              message("Using native Windows grep (cached): ", cmd)
+            }
+            return(safe_system_call_internal(cmd, timeout))
+          } else {
+            # Native grep doesn't work, try to find it in PATH
+            where_grep <- tryCatch({
+              system("where grep", intern = TRUE, ignore.stderr = TRUE)
+            }, error = function(e) NULL, warning = function(w) NULL)
+            
+            if (!is.null(where_grep) && length(where_grep) > 0) {
+              grep_path <- where_grep[1]
+              # CRITICAL FIX: Use a more robust replacement that preserves all flags
+              cmd <- sub("^grep\\s+", paste0("\"", grep_path, "\" "), cmd)
+              options(grepreaper.cached_grep_path = grep_path)
+              if (getOption("grepreaper.show_progress", FALSE)) {
+                message("Using native Windows grep from PATH: ", cmd)
+              }
+              return(safe_system_call_internal(cmd, timeout))
+            }
+          }
+        }
+      }
+      
+      # If still no grep found, return empty result with warning
+      if (getOption("grepreaper.show_progress", FALSE)) {
+        warning("No grep command available on Windows. Please install Git for Windows, WSL, or ensure grep is in PATH.")
+      }
+      return(character(0))
     }
     
     # PERFORMANCE OPTIMIZATION: Execute command with optimized system call
@@ -571,11 +563,12 @@ monitor_performance <- function(expr, show_details = FALSE) {
   )
   
   if (show_details) {
-    cat("Performance Metrics:\n")
-    cat("==================\n")
-    cat("Execution Time:", round(execution_time, 3), "seconds\n")
-    cat("Memory Used:", round(memory_used / (1024 * 1024), 2), "MB\n")
-    cat("Timestamp:", format(end_time, "%Y-%m-%d %H:%M:%S"), "\n")
+    # Return detailed performance metrics
+    performance_metrics$details <- list(
+      execution_time_formatted = paste("Execution Time:", round(execution_time, 3), "seconds"),
+      memory_used_formatted = paste("Memory Used:", round(memory_used / (1024 * 1024), 2), "MB"),
+      timestamp_formatted = paste("Timestamp:", format(end_time, "%Y-%m-%d %H:%M:%S"))
+    )
   }
   
   return(performance_metrics)
