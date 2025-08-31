@@ -4,7 +4,7 @@
 \alias{build_grep_cmd}
 \title{Build grep command string}
 \usage{
-build_grep_cmd(pattern, files, options = "")
+build_grep_cmd(pattern, files, options = "", fixed = FALSE)
 }
 \arguments{
 \item{pattern}{Pattern to search for (will be automatically quoted)}
@@ -12,6 +12,8 @@ build_grep_cmd(pattern, files, options = "")
 \item{files}{Files to search in (can be a single file or vector of files)}
 
 \item{options}{Options string for grep (e.g., "-i" for case-insensitive)}
+
+\item{fixed}{Logical; if TRUE, pattern is treated as a literal string (not escaped)}
 }
 \value{
 A properly formatted command string ready for system execution
