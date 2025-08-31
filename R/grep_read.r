@@ -112,9 +112,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           matching_rows <- col_data == pattern
         }
       } else if (is.numeric(col_data)) {
-        # For numeric columns, convert pattern to numeric for comparison
-        pattern_num <- suppressWarnings(as.numeric(pattern))
-        if (!is.na(pattern_num)) {
+        # Try to convert pattern to numeric for comparison
+        pattern_num <- tryCatch(as.numeric(pattern), 
+                               warning = function(w) NULL,
+                               error = function(e) NULL)
+        if (!is.null(pattern_num)) {
           matching_rows <- col_data == pattern_num
         } else {
           # Pattern can't be converted to numeric, no matches
@@ -188,10 +190,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
     if (only_matching) options <- c(options, "-o")
     if (count_only) options <- c(options, "-c")
     
-    # CRITICAL FIX: Always add -H when we need metadata
-    # CRITICAL FIX: For count_only with multiple files, ALWAYS add -H to get filename:count format
+    # Always add -H when we need metadata
+    # For count_only with multiple files, ALWAYS add -H to get filename:count format
     # This is needed even when include_filename = FALSE to distinguish between different files
-    # BUT: Don't add -H for show_line_numbers with multiple files if user explicitly set include_filename = FALSE
     if ((!is.null(include_filename) && include_filename) || (count_only && length(files) > 1) || 
         (show_line_numbers && length(files) > 1 && (is.null(include_filename) || include_filename))) {
       options <- c(options, "-H")
@@ -660,8 +661,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                   vals <- dt[[col_name]]
                   if (is.character(vals)) {
                     # Try numeric conversion
-                    num_vals <- suppressWarnings(as.numeric(vals))
-                    if (!all(is.na(num_vals))) {
+                    num_vals <- tryCatch(as.numeric(vals), 
+                                        warning = function(w) NULL,
+                                        error = function(e) NULL)
+                    if (!is.null(num_vals)) {
                       dt[, (col_name) := num_vals]
                     }
                   }
@@ -744,8 +747,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                     vals <- dt[[col_name]]
                     if (is.character(vals)) {
                       # Try numeric conversion
-                      num_vals <- suppressWarnings(as.numeric(vals))
-                      if (!all(is.na(num_vals))) {
+                      num_vals <- tryCatch(as.numeric(vals), 
+                                          warning = function(w) NULL,
+                                          error = function(e) NULL)
+                      if (!is.null(num_vals)) {
                         dt[, (col_name) := num_vals]
                       }
                     }
@@ -879,8 +884,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
               vals <- dt[[col]]
               if (is.character(vals)) {
                 # Try numeric conversion
-                num_vals <- suppressWarnings(as.numeric(vals))
-                if (!all(is.na(num_vals))) {
+                num_vals <- tryCatch(as.numeric(vals), 
+                                    warning = function(w) NULL,
+                                    error = function(e) NULL)
+                if (!is.null(num_vals)) {
                   dt[, (col) := num_vals]
                 }
               }
