@@ -38,9 +38,18 @@
 
 ## Recommended Testing Order
 
-1. **Start with simple test**: `simple_test_other_device.R`
-2. **If successful**, try the comprehensive test: `comprehensive_test_other_device.R`
-3. **If issues persist**, run the simple test step by step
+1. **Start with installation script**: `install_grepreaper.R`
+2. **If successful**, try the simple test: `simple_test_other_device.R`
+3. **If successful**, try the comprehensive test: `comprehensive_test_other_device.R`
+4. **If issues persist**, use the installation script first
+
+## Running the Installation Script
+
+```r
+# Copy the script to your device
+# Run in R console:
+source('install_grepreaper.R')
+```
 
 ## Running the Simple Test
 

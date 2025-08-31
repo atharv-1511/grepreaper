@@ -45,56 +45,56 @@ for (pkg in required_packages) {
 
 # Install grepreaper from GitHub
 cat("Installing grepreaper from GitHub...\n")
+
+# Method 1: Try direct GitHub download and install
+cat("Method 1: Direct GitHub download...\n")
 tryCatch({
-  # Install directly from GitHub URL
-  cat("Installing from GitHub URL: https://github.com/atharv-1511/grepreaper/\n")
+  temp_dir <- tempdir()
+  download_url <- "https://github.com/atharv-1511/grepreaper/archive/refs/heads/main.zip"
+  zip_file <- file.path(temp_dir, "grepreaper.zip")
   
-  # Use install.packages with the GitHub URL
-  install.packages("https://github.com/atharv-1511/grepreaper/", 
-                   repos = NULL, 
-                   type = "source")
-  cat("✅ grepreaper installed successfully from GitHub\n\n")
+  cat("Downloading from:", download_url, "\n")
+  download.file(download_url, zip_file, mode = "wb")
+  cat("Download completed. Extracting...\n")
+  
+  unzip(zip_file, exdir = temp_dir)
+  
+  # Find the extracted directory
+  extracted_dir <- list.dirs(temp_dir, full.names = TRUE)
+  grepreaper_dir <- extracted_dir[grepl("grepreaper", extracted_dir)][1]
+  
+  cat("Found extracted directory:", grepreaper_dir, "\n")
+  
+  if (!is.na(grepreaper_dir) && file.exists(file.path(grepreaper_dir, "DESCRIPTION"))) {
+    cat("Installing from downloaded source...\n")
+    install.packages(grepreaper_dir, repos = NULL, type = "source")
+    cat("✅ grepreaper installed successfully from downloaded source\n\n")
+  } else {
+    stop("Could not find grepreaper source in downloaded files")
+  }
+  
+  # Clean up
+  unlink(zip_file)
+  unlink(grepreaper_dir, recursive = TRUE)
   
 }, error = function(e) {
-  cat("❌ Error installing from GitHub URL:", e$message, "\n")
-  cat("Trying alternative installation method...\n")
+  cat("❌ Method 1 failed:", e$message, "\n")
+  cat("Trying Method 2...\n\n")
   
-  # Fallback: try direct GitHub download and install
+  # Method 2: Try to install from CRAN-like URL
   tryCatch({
-    cat("Trying direct GitHub download...\n")
-    temp_dir <- tempdir()
-    download_url <- "https://github.com/atharv-1511/grepreaper/archive/refs/heads/main.zip"
-    zip_file <- file.path(temp_dir, "grepreaper.zip")
-    
-    cat("Downloading from:", download_url, "\n")
-    download.file(download_url, zip_file, mode = "wb")
-    cat("Download completed. Extracting...\n")
-    
-    unzip(zip_file, exdir = temp_dir)
-    
-    # Find the extracted directory
-    extracted_dir <- list.dirs(temp_dir, full.names = TRUE)
-    grepreaper_dir <- extracted_dir[grepl("grepreaper", extracted_dir)][1]
-    
-    cat("Found extracted directory:", grepreaper_dir, "\n")
-    
-    if (!is.na(grepreaper_dir) && file.exists(file.path(grepreaper_dir, "DESCRIPTION"))) {
-      cat("Installing from downloaded source...\n")
-      install.packages(grepreaper_dir, repos = NULL, type = "source")
-      cat("✅ grepreaper installed successfully from downloaded source\n\n")
-    } else {
-      stop("Could not find grepreaper source in downloaded files")
-    }
-    
-    # Clean up
-    unlink(zip_file)
-    unlink(grepreaper_dir, recursive = TRUE)
-    
+    cat("Method 2: CRAN-style installation...\n")
+    install.packages("https://github.com/atharv-1511/grepreaper/archive/refs/heads/main.zip", 
+                     repos = NULL, 
+                     type = "source")
+    cat("✅ grepreaper installed successfully via CRAN method\n\n")
   }, error = function(e2) {
-    cat("❌ All installation methods failed:\n")
-    cat("  GitHub URL error:", e$message, "\n")
-    cat("  Download error:", e2$message, "\n")
-    cat("Please check your internet connection and try again.\n\n")
+    cat("❌ Method 2 failed:", e2$message, "\n")
+    cat("All installation methods failed. Please check:\n")
+    cat("1. Internet connection\n")
+    cat("2. R version compatibility\n")
+    cat("3. Write permissions\n")
+    stop("Cannot install grepreaper package")
   })
 })
 
