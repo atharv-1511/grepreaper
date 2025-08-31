@@ -590,7 +590,10 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
           if (length(result) > 0) {
             # PERFORMANCE OPTIMIZATION: Use vectorized operations for metadata parsing
             # This prevents data corruption when metadata is present
-            if (show_line_numbers || include_filename) {
+            # CRITICAL FIX: We need to check for filename:data format even when include_filename=FALSE
+            # because grep might still return filename:data format that needs to be stripped
+            # Also, when multiple files are specified, grep automatically shows filenames even without -H
+            if (show_line_numbers || include_filename || length(files) > 1) {  # Always check for filename prefixes when multiple files
               # Vectorized colon counting for format detection
             colon_counts <- lengths(gregexpr(":", result, fixed = TRUE))
             
@@ -726,7 +729,9 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 # PERFORMANCE OPTIMIZATION: Use fread for CSV parsing
                 dt <- data.table::data.table()
                 # CRITICAL FIX: Preserve original line numbers from source files
-                dt[, line_number := suppressWarnings(as.integer(split_result[["line_number"]]))]
+                dt[, line_number := tryCatch(as.integer(split_result[["line_number"]]), 
+                                            warning = function(w) NA_integer_, 
+                                            error = function(e) NA_integer_)]
                 
                 # CRITICAL FIX: Parse each data line individually to avoid CSV parsing issues
                 # This ensures that each line is properly parsed as separate columns
@@ -758,28 +763,66 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
                 }
               }
             } else {
-              # No metadata, just CSV data
-              # PERFORMANCE OPTIMIZATION: Use fread directly for best performance
-              tryCatch({
-                csv_data <- paste(result, collapse = "\n")
-                if (nchar(csv_data) > 0) {
-                  dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
-                } else {
-                  dt <- data.table::data.table()
-                }
-              }, error = function(e) {
-                # Fallback to manual parsing
-                data_splits <- strsplit(result, ",", fixed = TRUE)
-                max_cols <- max(sapply(data_splits, length))
+              # No metadata requested, but grep might still return filename:data format
+              # We need to strip the filename prefix and parse just the data part
+              if (first_colon_count == 1) {
+                # grep returned filename:data format, strip filename and parse data
+                split_result <- split.columns(
+                  x = result,
+                  column.names = c("source_file", "data"),
+                  split = ":",
+                  resulting.columns = 2,
+                  fixed = TRUE
+                )
                 
-                dt <- data.table::data.table()
-                for (i in seq_len(max_cols)) {
-                  col_values <- sapply(data_splits, function(x) {
-                    if (i <= length(x)) x[i] else NA_character_
-                  })
-                  dt[, (paste0("V", i)) := col_values]
-                }
-              })
+                # Parse just the data part (without filename)
+                data_parts <- split_result[["data"]]
+                
+                # PERFORMANCE OPTIMIZATION: Use fread for maximum speed and accuracy
+                tryCatch({
+                  csv_data <- paste(data_parts, collapse = "\n")
+                  if (nchar(csv_data) > 0) {
+                    dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                  } else {
+                    dt <- data.table::data.table()
+                  }
+                }, error = function(e) {
+                  # Fallback parsing
+                  data_splits <- strsplit(data_parts, ",", fixed = TRUE)
+                  max_cols <- max(sapply(data_splits, length))
+                  
+                  dt <- data.table::data.table()
+                  for (i in seq_len(max_cols)) {
+                    col_values <- sapply(data_splits, function(x) {
+                      if (i <= length(x)) x[i] else NA_character_
+                    })
+                    dt[, (paste0("V", i)) := col_values]
+                  }
+                })
+              } else {
+                # No metadata, just CSV data
+                # PERFORMANCE OPTIMIZATION: Use fread directly for best performance
+                tryCatch({
+                  csv_data <- paste(result, collapse = "\n")
+                  if (nchar(csv_data) > 0) {
+                    dt <- data.table::fread(text = csv_data, header = FALSE, sep = ",")
+                  } else {
+                    dt <- data.table::data.table()
+                  }
+                }, error = function(e) {
+                  # Fallback to manual parsing
+                  data_splits <- strsplit(result, ",", fixed = TRUE)
+                  max_cols <- max(sapply(data_splits, length))
+                  
+                  dt <- data.table::data.table()
+                  for (i in seq_len(max_cols)) {
+                    col_values <- sapply(data_splits, function(x) {
+                      if (i <= length(x)) x[i] else NA_character_
+                    })
+                    dt[, (paste0("V", i)) := col_values]
+                  }
+                })
+              }
             }
           } else {
             # No metadata requested, just parse CSV data directly

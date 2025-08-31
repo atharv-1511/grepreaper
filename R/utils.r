@@ -255,32 +255,25 @@ build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
   return(cmd)
 }
 
-#' Safe system call that handles errors gracefully
+#' Safe system call with timeout support
 #' 
-#' Executes system commands with comprehensive error handling and cross-platform
-#' compatibility. This function automatically detects and uses the appropriate grep
-#' implementation on Windows (Git for Windows or WSL) and provides timeout handling
-#' on Unix-like systems. It's designed to work seamlessly with the grep-related
-#' functions in this package.
+#' Executes system commands safely with error handling and timeout support.
+#' This function automatically detects and uses the best available grep command
+#' on Windows systems, including Git for Windows, WSL, and native grep.
 #' 
-#' @param cmd Command to execute (typically built with \code{build_grep_cmd})
-#' @param timeout Timeout in seconds (default: 60) - Note: not used in Windows
+#' @param cmd The command to execute
+#' @param timeout Timeout in seconds (not supported on Windows)
 #' 
-#' @return Result of system call as a character vector, or empty character vector
-#'   on error or timeout
+#' @return Character vector with command output, or empty vector on failure
 #' 
 #' @examples
-#' # Safe execution of a grep command
-#' cmd <- build_grep_cmd("error", "log.txt")
-#' result <- safe_system_call(cmd)
-#' if (length(result) > 0) {
-#'   cat("Found", length(result), "matching lines\n")
-#' } else {
-#'   cat("No matches found or command failed\n")
-#' }
+#' # Execute a simple command
+#' result <- safe_system_call("echo hello")
+#' print(result)
 #' 
-#' # With timeout (Unix-like systems only)
-#' result_timeout <- safe_system_call(cmd, timeout = 30)
+#' # Execute grep command (automatically optimized for Windows)
+#' grep_result <- safe_system_call("grep -n 'pattern' file.txt")
+#' print(grep_result)
 #' 
 #' @export
 safe_system_call <- function(cmd, timeout = 60) {
@@ -315,70 +308,65 @@ safe_system_call <- function(cmd, timeout = 60) {
           }, error = function(e) NULL, warning = function(w) NULL)
           
           if (!is.null(test_result) && length(test_result) > 0) {
-            # Cache the successful path locally
-            local_cached_path <- git_grep_path
-            message("Using Git's grep (cached): ", cmd)
+            # Cache the successful path and use it
+            options(grepreaper.cached_grep_path = git_grep_path)
+            cmd <- sub("^grep\\s+", paste0("\"", git_grep_path, "\" "), cmd)
+            message("Using Git's grep: ", cmd)
             return(safe_system_call_internal(cmd, timeout))
           }
         }
       }
       
       # If no Git grep found, try to use Windows Subsystem for Linux (WSL) grep
-      if (!is.null(cached_grep_path)) { # Check if WSL was already cached
-        wsl_result <- tryCatch({
-          system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
-        }, error = function(e) NULL, warning = function(w) NULL)
-        
-        if (!is.null(wsl_result) && length(wsl_result) > 0) {
-          # Cache WSL grep for future use
-          options(grepreaper.cached_grep_path = "wsl grep")
-          cmd <- sub("^grep\\s+", "wsl grep ", cmd)
-          if (getOption("grepreaper.show_progress", FALSE)) {
-            message("Using WSL grep (cached): ", cmd)
-          }
-          return(safe_system_call_internal(cmd, timeout))
+      wsl_result <- tryCatch({
+        system("wsl grep --version", intern = TRUE, ignore.stderr = TRUE)
+      }, error = function(e) NULL, warning = function(w) NULL)
+      
+      if (!is.null(wsl_result) && length(wsl_result) > 0) {
+        # Cache WSL grep for future use
+        options(grepreaper.cached_grep_path = "wsl grep")
+        cmd <- sub("^grep\\s+", "wsl grep ", cmd)
+        if (getOption("grepreaper.show_progress", FALSE)) {
+          message("Using WSL grep: ", cmd)
         }
+        return(safe_system_call_internal(cmd, timeout))
       }
       
       # If still no grep found, try to use native Windows grep
-      if (!is.null(cached_grep_path)) { # Check if native grep was already cached
-        native_grep_result <- tryCatch({
-          system("grep --version", intern = TRUE, ignore.stderr = TRUE)
+      native_grep_result <- tryCatch({
+        system("grep --version", intern = TRUE, ignore.stderr = TRUE)
+      }, error = function(e) NULL, warning = function(w) NULL)
+      
+      if (!is.null(native_grep_result) && length(native_grep_result) > 0) {
+        # Cache native Windows grep for future use
+        options(grepreaper.cached_grep_path = "grep")
+        # Test if the command actually works
+        test_cmd <- sub("^grep\\s+", "grep ", cmd)
+        test_result <- tryCatch({
+          system(test_cmd, intern = TRUE, ignore.stderr = TRUE)
         }, error = function(e) NULL, warning = function(w) NULL)
         
-        if (!is.null(native_grep_result) && length(native_grep_result) > 0) {
-          # Cache native Windows grep for future use
-          options(grepreaper.cached_grep_path = "grep")
-          # Test if the command actually works
-          test_cmd <- sub("^grep\\s+", "grep ", cmd)
-          test_result <- tryCatch({
-            system(test_cmd, intern = TRUE, ignore.stderr = TRUE)
+        if (!is.null(test_result)) {
+          # Native grep works, use it
+          cmd <- test_cmd
+          if (getOption("grepreaper.show_progress", FALSE)) {
+            message("Using native Windows grep: ", cmd)
+          }
+          return(safe_system_call_internal(cmd, timeout))
+        } else {
+          # Native grep doesn't work, try to find it in PATH
+          where_grep <- tryCatch({
+            system("where grep", intern = TRUE, ignore.stderr = TRUE)
           }, error = function(e) NULL, warning = function(w) NULL)
           
-          if (!is.null(test_result)) {
-            # Native grep works, use it
-            # CRITICAL FIX: Preserve the entire command structure including flags
-            cmd <- test_cmd
+          if (!is.null(where_grep) && length(where_grep) > 0) {
+            grep_path <- where_grep[1]
+            cmd <- sub("^grep\\s+", paste0("\"", grep_path, "\" "), cmd)
+            options(grepreaper.cached_grep_path = grep_path)
             if (getOption("grepreaper.show_progress", FALSE)) {
-              message("Using native Windows grep (cached): ", cmd)
+              message("Using native Windows grep from PATH: ", cmd)
             }
             return(safe_system_call_internal(cmd, timeout))
-          } else {
-            # Native grep doesn't work, try to find it in PATH
-            where_grep <- tryCatch({
-              system("where grep", intern = TRUE, ignore.stderr = TRUE)
-            }, error = function(e) NULL, warning = function(w) NULL)
-            
-            if (!is.null(where_grep) && length(where_grep) > 0) {
-              grep_path <- where_grep[1]
-              # CRITICAL FIX: Use a more robust replacement that preserves all flags
-              cmd <- sub("^grep\\s+", paste0("\"", grep_path, "\" "), cmd)
-              options(grepreaper.cached_grep_path = grep_path)
-              if (getOption("grepreaper.show_progress", FALSE)) {
-                message("Using native Windows grep from PATH: ", cmd)
-              }
-              return(safe_system_call_internal(cmd, timeout))
-            }
           }
         }
       }
@@ -415,6 +403,35 @@ safe_system_call <- function(cmd, timeout = 60) {
     if (getOption("grepreaper.show_progress", FALSE)) {
       message("safe_system_call warning: ", w$message)
     }
+    return(character(0))
+  })
+}
+
+#' Internal system call function for safe_system_call
+#' 
+#' This is the internal implementation that actually executes the system command.
+#' It's separated to avoid recursion issues in the main safe_system_call function.
+#' 
+#' @param cmd The command to execute
+#' @param timeout Timeout in seconds (not supported on Windows)
+#' 
+#' @return Character vector with command output, or empty vector on failure
+#' 
+#' @keywords internal
+safe_system_call_internal <- function(cmd, timeout = 60) {
+  tryCatch({
+    # Execute the actual system call
+    result <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
+    
+    # Check if the command executed successfully
+    if (is.null(attr(result, "status")) || attr(result, "status") == 0) {
+      return(result)
+    } else {
+      return(character(0))
+    }
+  }, error = function(e) {
+    return(character(0))
+  }, warning = function(w) {
     return(character(0))
   })
 }
