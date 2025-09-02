@@ -11,13 +11,22 @@ cat(paste(rep("=", 80), collapse = ""), "\n\n")
 
 # Test file paths - UPDATE THESE FOR YOUR SYSTEM
 test_files <- c(
-  # Windows paths (use double backslashes)
+  # Windows paths (use double backslashes) - FOR CROSS-DEVICE TESTING
   "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
   "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv", 
   "C:\\Users\\Atharv Raskar\\Downloads\\academic Stress level - maintainance 1.csv",
   "C:\\Users\\Atharv Raskar\\Downloads\\pima-indians-diabetes.csv"
   
-  # macOS/Linux paths (uncomment and modify as needed)
+  # Alternative: Local data files (uncomment for local testing)
+  # "data/sample_data.csv",
+  # "data/small_diamonds.csv",
+  # "data/diabetes.csv",
+  # "data/diamonds.csv",
+  # "data/Employers_data.csv",
+  # "data/academic Stress level - maintainance 1.csv",
+  # "data/Hearing well-being Survey Report.csv"
+  
+  # Alternative: macOS/Linux paths (uncomment and modify as needed)
   # "/Users/username/Downloads/diamonds.csv",
   # "/Users/username/Downloads/Amusement_Parks_Rides_Registered.csv",
   # "/Users/username/Downloads/academic Stress level - maintainance 1.csv",
@@ -39,6 +48,38 @@ test_patterns <- c(
 # =============================================================================
 # TEST EXECUTION - NO CHANGES NEEDED BELOW THIS LINE
 # =============================================================================
+
+# Load the package functions
+cat("📦 Loading package functions...\n")
+tryCatch({
+  # Source the utility functions first
+  if (file.exists("R/utils.r")) {
+    source("R/utils.r")
+    cat("   ✅ utils.r loaded successfully\n")
+  } else {
+    cat("   ❌ utils.r not found\n")
+  }
+  
+  # Source the main function
+  if (file.exists("R/grep_read.r")) {
+    source("R/grep_read.r")
+    cat("   ✅ grep_read.r loaded successfully\n")
+  } else {
+    cat("   ❌ grep_read.r not found\n")
+  }
+  
+  # Load data.table if available
+  if (requireNamespace("data.table", quietly = TRUE)) {
+    library(data.table)
+    cat("   ✅ data.table loaded successfully\n")
+  } else {
+    cat("   ❌ data.table not available\n")
+  }
+}, error = function(e) {
+  cat("   ❌ Error loading functions:", e$message, "\n")
+})
+
+cat("\n")
 
 # Global test results tracking
 test_results <- list(
@@ -210,7 +251,8 @@ test_helper_functions <- function() {
   cat("   📊 Testing split.columns...\n")
   tryCatch({
     if (exists("split.columns")) {
-      test_data <- data.frame(V1 = c("file1:line1:data1", "file2:line2:data2"))
+      # Test with character vector (as expected by the function)
+      test_data <- c("file1:line1:data1", "file2:line2:data2")
       result <- split.columns(test_data)
       if (is.data.frame(result) && ncol(result) > 1) {
         log_test_result("split.columns", "PASS", "Columns split successfully")
@@ -228,12 +270,17 @@ test_helper_functions <- function() {
   cat("   📁 Testing is_binary_file...\n")
   tryCatch({
     if (exists("is_binary_file")) {
-      # Test with a text file (should return FALSE)
-      result <- is_binary_file("test.csv")
-      if (is.logical(result)) {
-        log_test_result("is_binary_file", "PASS", paste("Result:", result))
+      # Test with an existing file
+      test_file <- "data/sample_data.csv"
+      if (file.exists(test_file)) {
+        result <- is_binary_file(test_file)
+        if (is.logical(result)) {
+          log_test_result("is_binary_file", "PASS", paste("Result:", result))
+        } else {
+          log_test_result("is_binary_file", "FAIL", "Invalid result type")
+        }
       } else {
-        log_test_result("is_binary_file", "FAIL", "Invalid result type")
+        log_test_result("is_binary_file", "WARN", "No test file available")
       }
     } else {
       log_test_result("is_binary_file", "FAIL", "Function not found")
@@ -247,10 +294,10 @@ test_helper_functions <- function() {
   tryCatch({
     if (exists("check_grep_availability")) {
       result <- check_grep_availability()
-      if (is.logical(result)) {
-        log_test_result("check_grep_availability", "PASS", paste("Grep available:", result))
+      if (is.list(result) && "available" %in% names(result)) {
+        log_test_result("check_grep_availability", "PASS", paste("Grep available:", result$available))
       } else {
-        log_test_result("check_grep_availability", "FAIL", "Invalid result type")
+        log_test_result("check_grep_availability", "FAIL", "Invalid result structure")
       }
     } else {
       log_test_result("check_grep_availability", "FAIL", "Function not found")

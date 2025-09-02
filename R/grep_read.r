@@ -114,78 +114,78 @@ handle_search_column <- function(files, path, file_pattern, pattern, invert,
                                 show_line_numbers, include_filename, nrows, header,
                                 search_column, recursive, ...) {
   
-  if (is.null(files) && !is.null(path)) {
-    files <- list.files(path = path, pattern = file_pattern,
-                        full.names = TRUE, recursive = recursive)
-  }
-  if (!is.null(files)) {
-    files <- path.expand(files)
-  }
-  
-  if (is.null(files) || length(files) == 0) {
-    stop("'files' must be a non-empty character vector for search_column functionality")
-  }
-  if (!is.character(pattern) || length(pattern) != 1) {
-    stop("'pattern' must be a single character string")
-  }
-  
-  # Check file existence
-  missing_files <- files[!file.exists(files)]
-  if (length(missing_files) > 0) {
-    stop(sprintf("The following file(s) do not exist: %s", 
-                 paste(missing_files, collapse = ", ")))
-  }
-  
-  # Read the file to get column structure
-  file_data <- data.table::fread(files[1], nrows = nrows, header = header)
-  
-  if (search_column %in% names(file_data)) {
-    # Filter by the specific column
-    col_data <- file_data[[search_column]]
+    if (is.null(files) && !is.null(path)) {
+      files <- list.files(path = path, pattern = file_pattern,
+                          full.names = TRUE, recursive = recursive)
+    }
+    if (!is.null(files)) {
+      files <- path.expand(files)
+    }
     
-    # Handle different data types appropriately
-    if (is.character(col_data) || is.factor(col_data)) {
-      matching_rows <- col_data == pattern
-    } else if (is.numeric(col_data)) {
-      pattern_num <- tryCatch(as.numeric(pattern), 
-                             warning = function(w) NULL,
-                             error = function(e) NULL)
-      if (!is.null(pattern_num)) {
-        matching_rows <- col_data == pattern_num
+    if (is.null(files) || length(files) == 0) {
+      stop("'files' must be a non-empty character vector for search_column functionality")
+    }
+    if (!is.character(pattern) || length(pattern) != 1) {
+      stop("'pattern' must be a single character string")
+    }
+    
+    # Check file existence
+    missing_files <- files[!file.exists(files)]
+    if (length(missing_files) > 0) {
+      stop(sprintf("The following file(s) do not exist: %s", 
+                   paste(missing_files, collapse = ", ")))
+    }
+    
+    # Read the file to get column structure
+    file_data <- data.table::fread(files[1], nrows = nrows, header = header)
+    
+    if (search_column %in% names(file_data)) {
+      # Filter by the specific column
+      col_data <- file_data[[search_column]]
+      
+      # Handle different data types appropriately
+      if (is.character(col_data) || is.factor(col_data)) {
+          matching_rows <- col_data == pattern
+      } else if (is.numeric(col_data)) {
+        pattern_num <- tryCatch(as.numeric(pattern), 
+                               warning = function(w) NULL,
+                               error = function(e) NULL)
+        if (!is.null(pattern_num)) {
+          matching_rows <- col_data == pattern_num
+        } else {
+          matching_rows <- logical(length(col_data))
+        }
       } else {
         matching_rows <- logical(length(col_data))
       }
-    } else {
-      matching_rows <- logical(length(col_data))
-    }
-    
-    if (invert) matching_rows <- !matching_rows
-    
-    if (sum(matching_rows) > 0) {
-      result_data <- file_data[matching_rows]
       
-      # Add metadata columns if requested
-      if (show_line_numbers) {
-        result_data[, line_number := seq_len(.N)]
-      }
-      if (!is.null(include_filename) && include_filename) {
-        result_data[, source_file := basename(files[1])]
-      }
+      if (invert) matching_rows <- !matching_rows
       
-      return(result_data[])
-    } else {
-      # No matches found, return empty data.table with same structure
+      if (sum(matching_rows) > 0) {
+        result_data <- file_data[matching_rows]
+        
+        # Add metadata columns if requested
+        if (show_line_numbers) {
+          result_data[, line_number := seq_len(.N)]
+        }
+        if (!is.null(include_filename) && include_filename) {
+          result_data[, source_file := basename(files[1])]
+        }
+        
+        return(result_data[])
+      } else {
+        # No matches found, return empty data.table with same structure
       empty_dt <- file_data[0]
-      if (show_line_numbers) {
-        empty_dt[, line_number := integer(0)]
+        if (show_line_numbers) {
+          empty_dt[, line_number := integer(0)]
+        }
+        if (!is.null(include_filename) && include_filename) {
+          empty_dt[, source_file := character(0)]
+        }
+        return(empty_dt[])
       }
-      if (!is.null(include_filename) && include_filename) {
-        empty_dt[, source_file := character(0)]
-      }
-      return(empty_dt[])
-    }
-  } else {
-    warning(sprintf("Column '%s' not found in file. Falling back to grep search.", search_column))
+    } else {
+      warning(sprintf("Column '%s' not found in file. Falling back to grep search.", search_column))
     # Continue to normal grep logic
     return(NULL)
   }
@@ -197,44 +197,44 @@ build_grep_command_string <- function(files, path, file_pattern, pattern, invert
                                     show_line_numbers, only_matching, count_only,
                                     include_filename) {
   
-  if (is.null(files) && !is.null(path)) {
-    files <- list.files(path = path, pattern = file_pattern,
-                        full.names = TRUE, recursive = recursive)
-  }
-  if (!is.null(files)) {
-    files <- path.expand(files)
-  }
-  
-  if (!is.character(files) || length(files) == 0) {
-    stop("'files' must be a non-empty character vector")
-  }
-  if (!is.character(pattern) || length(pattern) != 1) {
-    stop("'pattern' must be a single character string")
-  }
-  
-  options <- character()
-  if (invert) options <- c(options, "-v")
-  if (ignore_case) options <- c(options, "-i")
-  if (fixed) options <- c(options, "-F")
-  if (recursive) options <- c(options, "-r")
-  if (word_match) options <- c(options, "-w")
-  if (show_line_numbers) options <- c(options, "-n")
-  if (only_matching) options <- c(options, "-o")
-  if (count_only) options <- c(options, "-c")
-  
-  # Always add -H when we need metadata
+    if (is.null(files) && !is.null(path)) {
+      files <- list.files(path = path, pattern = file_pattern,
+                          full.names = TRUE, recursive = recursive)
+    }
+    if (!is.null(files)) {
+      files <- path.expand(files)
+    }
+    
+    if (!is.character(files) || length(files) == 0) {
+      stop("'files' must be a non-empty character vector")
+    }
+    if (!is.character(pattern) || length(pattern) != 1) {
+      stop("'pattern' must be a single character string")
+    }
+    
+    options <- character()
+    if (invert) options <- c(options, "-v")
+    if (ignore_case) options <- c(options, "-i")
+    if (fixed) options <- c(options, "-F")
+    if (recursive) options <- c(options, "-r")
+    if (word_match) options <- c(options, "-w")
+    if (show_line_numbers) options <- c(options, "-n")
+    if (only_matching) options <- c(options, "-o")
+    if (count_only) options <- c(options, "-c")
+    
+    # Always add -H when we need metadata
   if ((!is.null(include_filename) && include_filename) || 
       (count_only && length(files) > 1) || 
-      (show_line_numbers && length(files) > 1 && (is.null(include_filename) || include_filename))) {
-    options <- c(options, "-H")
-  }
-  
+        (show_line_numbers && length(files) > 1 && (is.null(include_filename) || include_filename))) {
+      options <- c(options, "-H")
+    }
+    
   # Always add -H for single files when we need metadata
-  if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
-    options <- c(options, "-H")
-  }
-  
-  options_str <- paste(options, collapse = " ")
+    if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
+      options <- c(options, "-H")
+    }
+    
+    options_str <- paste(options, collapse = " ")
   return(build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed))
 }
 
@@ -244,11 +244,11 @@ validate_and_prepare_files <- function(files, path, file_pattern, recursive) {
     files <- list.files(path = path, pattern = file_pattern,
                         full.names = TRUE, recursive = recursive)
   }
-  
+
   if (!is.null(files)) {
     files <- path.expand(files)
   }
-  
+
   if (!is.character(files) || length(files) == 0) {
     stop("'files' must be a non-empty character vector")
   }
@@ -261,7 +261,7 @@ validate_parameters <- function(pattern, count_only, only_matching, show_line_nu
   if (!is.character(pattern) || length(pattern) != 1) {
     stop("'pattern' must be a single character string")
   }
-  
+
   if (count_only && only_matching) {
     stop("'count_only' and 'only_matching' cannot both be TRUE")
   }
@@ -278,7 +278,7 @@ validate_parameters <- function(pattern, count_only, only_matching, show_line_nu
   if (is.na(skip) || skip < 0) {
     stop("'skip' must be a non-negative number or Inf")
   }
-}
+  }
 
 # Helper function to check file existence
 check_files_exist <- function(files) {
@@ -287,7 +287,7 @@ check_files_exist <- function(files) {
     stop(sprintf("The following file(s) do not exist: %s",
                  paste(missing_files, collapse = ", ")))
   }
-}
+  }
 
 # Helper function to check file sizes
 check_file_sizes <- function(files) {
@@ -302,7 +302,7 @@ check_file_sizes <- function(files) {
     if (file_size == 0) {
       warning(sprintf("Empty file detected: %s", basename(file)))
     }
-    
+
     # Check for binary files
     if (file_size > 0) {
       binary_check <- tryCatch({
@@ -340,12 +340,12 @@ build_grep_command <- function(files, pattern, invert, ignore_case, fixed, recur
       (show_line_numbers && length(files) > 1 && (is.null(include_filename) || include_filename))) {
     options <- c(options, "-H")
   }
-  
+
   # Always add -H for single files when we need metadata
   if ((show_line_numbers || (!is.null(include_filename) && include_filename)) && length(files) == 1) {
     options <- c(options, "-H")
   }
-  
+
   options_str <- paste(options, collapse = " ")
   return(build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed))
 }
@@ -358,12 +358,12 @@ read_data_with_grep <- function(cmd, header, count_only, files, nrows, ...) {
   
   # For now, let's use a simpler approach that works on Windows
   # We'll read the file directly and filter it in R instead of using grep
-  if (length(files) == 1) {
+          if (length(files) == 1) {
     dat <- data.table::fread(files, header = header, ...)
-  } else {
+          } else {
     # Multiple files - read each and combine
     all_data <- list()
-    for (file in files) {
+            for (file in files) {
       file_data <- data.table::fread(file, header = header, ...)
       all_data[[length(all_data) + 1]] <- file_data
     }
@@ -375,10 +375,10 @@ read_data_with_grep <- function(cmd, header, count_only, files, nrows, ...) {
 
 # Helper function to process count data
 process_count_data <- function(dat, files) {
-  if (length(files) == 1) {
+              if (length(files) == 1) {
     # Single file: just return count
     return(data.table::data.table(source_file = basename(files[1]), count = nrow(dat)))
-  } else {
+                } else {
     # Multiple files: count rows per file
     file_counts <- data.table::data.table(
       source_file = basename(files),
@@ -417,16 +417,16 @@ process_metadata_columns <- function(dat, files, show_line_numbers, include_file
   
   # Add metadata columns if needed
   if (include_filename || length(files) > 1) {
-    if (length(files) == 1) {
+                if (length(files) == 1) {
       dat[, source_file := basename(files[1])]
-    } else {
-      # For multiple files, we need to track which file each row came from
+                } else {
+                  # For multiple files, we need to track which file each row came from
       # This is a simplified approach - in practice you might want more sophisticated tracking
       dat[, source_file := basename(files[1])]
     }
   }
   
-  if (show_line_numbers) {
+            if (show_line_numbers) {
     dat[, line_number := seq_len(.N)]
   }
   
@@ -469,7 +469,7 @@ restore_data_types <- function(dat, shallow_copy) {
         # Skip if already correct type
         if (class(dat[[col_name]]) != target_type) {
           # Convert to target type
-          tryCatch({
+                tryCatch({
             if (target_type == "numeric") {
               dat[, (col_name) := as.numeric(get(col_name))]
             } else if (target_type == "integer") {
@@ -478,8 +478,8 @@ restore_data_types <- function(dat, shallow_copy) {
               dat[, (col_name) := as.character(get(col_name))]
             } else if (target_type == "logical") {
               dat[, (col_name) := as.logical(get(col_name))]
-            }
-          }, error = function(e) {
+                  }
+                }, error = function(e) {
             # If conversion fails, keep original type
             warning(sprintf("Could not convert column %s to %s", col_name, target_type))
           })
