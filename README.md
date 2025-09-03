@@ -3,7 +3,7 @@
 > Efficient, practical grep-powered reading for CSV-like data using data.table
 
 
-[!IMPORTANT] This project was developed as part of Google Summer of Code (GSoC) 2025.
+This project was developed as part of Google Summer of Code (GSoC) 2025.
 
 - GSoC Report: see `GSOC_REPORT.md` (summary, changes, testing, how to evaluate)
 - Comprehensive tests: `test_comprehensive.R` and `test_complex.R`
