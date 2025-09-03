@@ -1,36 +1,23 @@
-# 🧪 COMPREHENSIVE PACKAGE TESTING SUITE FOR GREPREAPER
-# This script tests EVERY function in the grepreaper package comprehensively
-# Designed for cross-device testing with detailed reporting
+# 🧪 Comprehensive Testing Suite for Grepreaper Package - FIXED VERSION
+# This script provides thorough testing of all package functionality
+# Designed for production use and quality assurance
 
-cat("🧪 COMPREHENSIVE GREPREAPER PACKAGE TESTING SUITE\n")
+cat("🧪 COMPREHENSIVE GREPREAPER PACKAGE TESTING SUITE - FIXED VERSION\n")
 cat(paste(rep("=", 80), collapse = ""), "\n\n")
 
 # =============================================================================
-# CONFIGURATION SECTION - UPDATE THESE PATHS FOR YOUR SYSTEM
+# CONFIGURATION SECTION
 # =============================================================================
 
-# Test file paths - UPDATE THESE FOR YOUR SYSTEM
+# Test file paths - using local data files
 test_files <- c(
-  # Windows paths (use double backslashes) - FOR CROSS-DEVICE TESTING
-  "C:\\Users\\Atharv Raskar\\Downloads\\diamonds.csv",
-  "C:\\Users\\Atharv Raskar\\Downloads\\Amusement_Parks_Rides_Registered.csv", 
-  "C:\\Users\\Atharv Raskar\\Downloads\\academic Stress level - maintainance 1.csv",
-  "C:\\Users\\Atharv Raskar\\Downloads\\pima-indians-diabetes.csv"
-  
-  # Alternative: Local data files (uncomment for local testing)
-  # "data/sample_data.csv",
-  # "data/small_diamonds.csv",
-  # "data/diabetes.csv",
-  # "data/diamonds.csv",
-  # "data/Employers_data.csv",
-  # "data/academic Stress level - maintainance 1.csv",
-  # "data/Hearing well-being Survey Report.csv"
-  
-  # Alternative: macOS/Linux paths (uncomment and modify as needed)
-  # "/Users/username/Downloads/diamonds.csv",
-  # "/Users/username/Downloads/Amusement_Parks_Rides_Registered.csv",
-  # "/Users/username/Downloads/academic Stress level - maintainance 1.csv",
-  # "/Users/username/Downloads/pima-indians-diabetes.csv"
+  "data/sample_data.csv",
+  "data/small_diamonds.csv", 
+  "data/diabetes.csv",
+  "data/diamonds.csv",
+  "data/Employers_data.csv",
+  "data/academic Stress level - maintainance 1.csv",
+  "data/Hearing well-being Survey Report.csv"
 )
 
 # Test patterns for different scenarios
@@ -46,37 +33,55 @@ test_patterns <- c(
 )
 
 # =============================================================================
-# TEST EXECUTION - NO CHANGES NEEDED BELOW THIS LINE
+# FUNCTION LOADING SECTION - FIXED
 # =============================================================================
 
-# Load the package functions
+# Load the package functions with proper error handling
 cat("📦 Loading package functions...\n")
+
+# Function to safely source R files
+safe_source <- function(file_path, description) {
+  if (file.exists(file_path)) {
+    tryCatch({
+      # Create a new environment to source into
+      env <- new.env()
+      source(file_path, local = env)
+      
+      # Copy functions to global environment
+      for (name in ls(env)) {
+        if (is.function(env[[name]])) {
+          assign(name, env[[name]], envir = .GlobalEnv)
+        }
+      }
+      
+      cat("   ✅", description, "loaded successfully\n")
+      return(TRUE)
+    }, error = function(e) {
+      cat("   ❌ Error loading", description, ":", e$message, "\n")
+      return(FALSE)
+    })
+  } else {
+    cat("   ❌", description, "not found at:", file_path, "\n")
+    return(FALSE)
+  }
+}
+
+# Load functions with proper error handling
+utils_loaded <- safe_source("R/utils.r", "utils.r")
+grep_read_loaded <- safe_source("R/grep_read.r", "grep_read.r")
+
+# Load data.table if available
+data_table_available <- FALSE
 tryCatch({
-  # Source the utility functions first
-  if (file.exists("R/utils.r")) {
-    source("R/utils.r")
-    cat("   ✅ utils.r loaded successfully\n")
-  } else {
-    cat("   ❌ utils.r not found\n")
-  }
-  
-  # Source the main function
-  if (file.exists("R/grep_read.r")) {
-    source("R/grep_read.r")
-    cat("   ✅ grep_read.r loaded successfully\n")
-  } else {
-    cat("   ❌ grep_read.r not found\n")
-  }
-  
-  # Load data.table if available
   if (requireNamespace("data.table", quietly = TRUE)) {
     library(data.table)
+    data_table_available <- TRUE
     cat("   ✅ data.table loaded successfully\n")
   } else {
     cat("   ❌ data.table not available\n")
   }
 }, error = function(e) {
-  cat("   ❌ Error loading functions:", e$message, "\n")
+  cat("   ❌ Error loading data.table:", e$message, "\n")
 })
 
 cat("\n")
@@ -110,6 +115,10 @@ log_test_result <- function(test_name, status, message = "", details = "") {
   }
 }
 
+# =============================================================================
+# TEST FUNCTIONS
+# =============================================================================
+
 # Function to test file availability
 test_file_availability <- function() {
   cat("📁 TESTING FILE AVAILABILITY\n")
@@ -138,6 +147,41 @@ test_file_availability <- function() {
   return(available_files)
 }
 
+# Function to test package structure
+test_package_structure <- function() {
+  cat("\n📦 TESTING PACKAGE STRUCTURE\n")
+  cat(paste(rep("-", 60), collapse = ""), "\n")
+  
+  # Test 1: Check if main function exists
+  cat("   🔍 Checking main function...\n")
+  if (exists("grep_read") && is.function(grep_read)) {
+    log_test_result("grep_read function", "PASS", "Main function found and is callable")
+  } else {
+    log_test_result("grep_read function", "FAIL", "Main function not found or not callable")
+  }
+  
+  # Test 2: Check if helper functions exist
+  cat("   🔧 Checking helper functions...\n")
+  helper_functions <- c("build_grep_cmd", "split.columns", "is_binary_file", 
+                       "check_grep_availability", "get_system_info")
+  
+  for (func in helper_functions) {
+    if (exists(func) && is.function(get(func))) {
+      log_test_result(paste("Helper:", func), "PASS", "Function found and callable")
+    } else {
+      log_test_result(paste("Helper:", func), "FAIL", "Function not found or not callable")
+    }
+  }
+  
+  # Test 3: Check if data.table is available
+  cat("   📊 Checking dependencies...\n")
+  if (data_table_available) {
+    log_test_result("data.table package", "PASS", "Package available and loaded")
+  } else {
+    log_test_result("data.table package", "FAIL", "Package not available")
+  }
+}
+
 # Function to test core grep_read function
 test_core_grep_read <- function(available_files) {
   cat("\n🔍 TESTING CORE grep_read FUNCTION\n")
@@ -145,6 +189,11 @@ test_core_grep_read <- function(available_files) {
   
   if (length(available_files) == 0) {
     log_test_result("Core grep_read", "FAIL", "No test files available")
+    return()
+  }
+  
+  if (!exists("grep_read") || !is.function(grep_read)) {
+    log_test_result("Core grep_read", "FAIL", "grep_read function not available")
     return()
   }
   
@@ -233,7 +282,7 @@ test_helper_functions <- function() {
   # Test 1: build_grep_cmd
   cat("   ⚙️ Testing build_grep_cmd...\n")
   tryCatch({
-    if (exists("build_grep_cmd")) {
+    if (exists("build_grep_cmd") && is.function(build_grep_cmd)) {
       cmd <- build_grep_cmd(pattern = "test", files = "test.csv")
       if (is.character(cmd) && length(cmd) > 0) {
         log_test_result("build_grep_cmd", "PASS", "Command built successfully")
@@ -250,7 +299,7 @@ test_helper_functions <- function() {
   # Test 2: split.columns
   cat("   📊 Testing split.columns...\n")
   tryCatch({
-    if (exists("split.columns")) {
+    if (exists("split.columns") && is.function(split.columns)) {
       # Test with character vector (as expected by the function)
       test_data <- c("file1:line1:data1", "file2:line2:data2")
       result <- split.columns(test_data)
@@ -269,7 +318,7 @@ test_helper_functions <- function() {
   # Test 3: is_binary_file
   cat("   📁 Testing is_binary_file...\n")
   tryCatch({
-    if (exists("is_binary_file")) {
+    if (exists("is_binary_file") && is.function(is_binary_file)) {
       # Test with an existing file
       test_file <- "data/sample_data.csv"
       if (file.exists(test_file)) {
@@ -292,7 +341,7 @@ test_helper_functions <- function() {
   # Test 4: check_grep_availability
   cat("   🔍 Testing check_grep_availability...\n")
   tryCatch({
-    if (exists("check_grep_availability")) {
+    if (exists("check_grep_availability") && is.function(check_grep_availability)) {
       result <- check_grep_availability()
       if (is.list(result) && "available" %in% names(result)) {
         log_test_result("check_grep_availability", "PASS", paste("Grep available:", result$available))
@@ -309,7 +358,7 @@ test_helper_functions <- function() {
   # Test 5: get_system_info
   cat("   💻 Testing get_system_info...\n")
   tryCatch({
-    if (exists("get_system_info")) {
+    if (exists("get_system_info") && is.function(get_system_info)) {
       result <- get_system_info()
       if (is.list(result) && length(result) > 0) {
         log_test_result("get_system_info", "PASS", "System info retrieved")
@@ -331,6 +380,11 @@ test_edge_cases <- function(available_files) {
   
   if (length(available_files) == 0) {
     log_test_result("Edge cases", "FAIL", "No test files available")
+    return()
+  }
+  
+  if (!exists("grep_read") || !is.function(grep_read)) {
+    log_test_result("Edge cases", "FAIL", "grep_read function not available")
     return()
   }
   
@@ -394,6 +448,11 @@ test_performance <- function(available_files) {
     return()
   }
   
+  if (!exists("grep_read") || !is.function(grep_read)) {
+    log_test_result("Performance", "FAIL", "grep_read function not available")
+    return()
+  }
+  
   for (i in seq_along(available_files)) {
     file_path <- available_files[i]
     file_name <- basename(file_path)
@@ -421,39 +480,69 @@ test_performance <- function(available_files) {
   }
 }
 
-# Function to test package structure
-test_package_structure <- function() {
-  cat("\n📦 TESTING PACKAGE STRUCTURE\n")
+# Function to test advanced features
+test_advanced_features <- function(available_files) {
+  cat("\n🚀 TESTING ADVANCED FEATURES\n")
   cat(paste(rep("-", 60), collapse = ""), "\n")
   
-  # Test 1: Check if main function exists
-  cat("   🔍 Checking main function...\n")
-  if (exists("grep_read")) {
-    log_test_result("grep_read function", "PASS", "Main function found")
-  } else {
-    log_test_result("grep_read function", "FAIL", "Main function not found")
+  if (length(available_files) == 0) {
+    log_test_result("Advanced features", "FAIL", "No test files available")
+    return()
   }
   
-  # Test 2: Check if helper functions exist
-  cat("   🔧 Checking helper functions...\n")
-  helper_functions <- c("build_grep_cmd", "split.columns", "is_binary_file", 
-                       "check_grep_availability", "get_system_info")
+  if (!exists("grep_read") || !is.function(grep_read)) {
+    log_test_result("Advanced features", "FAIL", "grep_read function not available")
+    return()
+  }
   
-  for (func in helper_functions) {
-    if (exists(func)) {
-      log_test_result(paste("Helper:", func), "PASS", "Function found")
+  test_file <- available_files[1]
+  
+  # Test 1: Case insensitive search
+  cat("   🔍 Testing case insensitive search...\n")
+  tryCatch({
+    result <- grep_read(files = test_file, pattern = "TEST", ignore_case = TRUE, show_cmd = FALSE)
+    log_test_result("Case insensitive", "PASS", paste("Found", nrow(result), "matches"))
+  }, error = function(e) {
+    log_test_result("Case insensitive", "FAIL", e$message)
+  })
+  
+  # Test 2: Regex pattern
+  cat("   🔍 Testing regex pattern...\n")
+  tryCatch({
+    result <- grep_read(files = test_file, pattern = ".*", show_cmd = FALSE)
+    log_test_result("Regex pattern", "PASS", paste("Found", nrow(result), "matches"))
+  }, error = function(e) {
+    log_test_result("Regex pattern", "FAIL", e$message)
+  })
+  
+  # Test 3: Multiple patterns
+  cat("   🔍 Testing multiple patterns...\n")
+  tryCatch({
+    result <- grep_read(files = test_file, pattern = "test|data|file", show_cmd = FALSE)
+    log_test_result("Multiple patterns", "PASS", paste("Found", nrow(result), "matches"))
+  }, error = function(e) {
+    log_test_result("Multiple patterns", "FAIL", e$message)
+  })
+  
+  # Test 4: All features combined
+  cat("   🔍 Testing all features combined...\n")
+  tryCatch({
+    result <- grep_read(
+      files = test_file, 
+      pattern = "test", 
+      count_only = FALSE,
+      show_line_numbers = TRUE,
+      show_cmd = FALSE,
+      ignore_case = TRUE
+    )
+    if (is.data.frame(result) && nrow(result) > 0) {
+      log_test_result("All features combined", "PASS", paste("Rows:", nrow(result)))
     } else {
-      log_test_result(paste("Helper:", func), "FAIL", "Function not found")
+      log_test_result("All features combined", "FAIL", "No results found")
     }
-  }
-  
-  # Test 3: Check if data.table is available
-  cat("   📊 Checking dependencies...\n")
-  if (requireNamespace("data.table", quietly = TRUE)) {
-    log_test_result("data.table package", "PASS", "Package available")
-  } else {
-    log_test_result("data.table package", "FAIL", "Package not available")
-  }
+  }, error = function(e) {
+    log_test_result("All features combined", "FAIL", e$message)
+  })
 }
 
 # Function to generate final report
@@ -510,6 +599,10 @@ generate_final_report <- function() {
   cat("- Maintained all original functionality\n")
 }
 
+# =============================================================================
+# MAIN TEST EXECUTION
+# =============================================================================
+
 # Main test execution
 main_comprehensive_test <- function() {
   cat("🚀 Starting Comprehensive Package Testing...\n\n")
@@ -531,6 +624,9 @@ main_comprehensive_test <- function() {
   
   # Test 6: Performance
   test_performance(available_files)
+  
+  # Test 7: Advanced features
+  test_advanced_features(available_files)
   
   # Generate final report
   generate_final_report()

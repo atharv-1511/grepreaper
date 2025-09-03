@@ -101,6 +101,11 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL,
   dat <- read_data_with_grep(cmd, header, count_only, files, nrows, ...)
 
   # Process and clean data
+  # Handle only_matching early: return just the matched substrings
+  if (only_matching) {
+    return(extract_only_matches(dat, pattern, fixed, ignore_case, word_match))
+  }
+
   if (count_only) {
     return(process_count_data(dat, files))
   } else {
@@ -348,6 +353,45 @@ build_grep_command <- function(files, pattern, invert, ignore_case, fixed, recur
 
   options_str <- paste(options, collapse = " ")
   return(build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed))
+}
+
+# Helper to extract only the matched substrings from rows
+extract_only_matches <- function(dat, pattern, fixed, ignore_case, word_match) {
+  # Convert each row to a single character string for pattern matching
+  if (!is.data.frame(dat)) {
+    dat <- data.table::as.data.table(dat)
+  }
+  if (nrow(dat) == 0) {
+    return(data.table::data.table(match = character()))
+  }
+
+  row_text <- apply(dat, 1, function(row) paste(row, collapse = " "))
+
+  # Build regex pattern respecting flags
+  patt <- pattern
+  if (fixed) {
+    # Escape regex metacharacters to match literally (escape backslash first)
+    patt <- gsub("\\\\", "\\\\\\\\", patt, perl = TRUE)
+    # Escape most metacharacters in one pass (excluding square/curly brackets)
+    patt <- gsub("([\\^$.|?*+()])", "\\\\\\1", patt, perl = TRUE)
+    # Escape square and curly brackets separately to avoid parser issues
+    patt <- gsub("\\[", "\\\\[", patt, perl = TRUE)
+    patt <- gsub("\\]", "\\\\]", patt, perl = TRUE)
+    patt <- gsub("\\{", "\\\\{", patt, perl = TRUE)
+    patt <- gsub("\\}", "\\\\}", patt, perl = TRUE)
+  }
+  if (word_match) {
+    patt <- paste0("\\b", patt, "\\b")
+  }
+  if (ignore_case) {
+    patt <- paste0("(?i)", patt)
+  }
+
+  m <- regexpr(patt, row_text, perl = TRUE)
+  matches <- ifelse(m > 0, regmatches(row_text, m), NA_character_)
+  res <- data.table::data.table(match = matches)
+  res <- res[!is.na(match)]
+  return(res[])
 }
 
 # Helper function to read data using grep

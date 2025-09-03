@@ -1,118 +1,70 @@
 # grepreaper
 
-**Efficient File Reading with Grep in R** - A high-performance package for fast pattern matching and data extraction from files using the power of `grep` at the command line.
+> Efficient, practical grep-powered reading for CSV-like data using data.table
 
-## Performance Optimized - Addressing User Feedback
 
-This package has been **completely optimized** to address speed and accuracy concerns:
+[!IMPORTANT] This project was developed as part of Google Summer of Code (GSoC) 2025.
 
-- **2-10x faster** pattern matching for large files
-- **Enhanced accuracy** with robust CSV parsing
-- **Memory efficient** streaming processing
-- **Performance monitoring** tools included
+- GSoC Report: see `GSOC_REPORT.md` (summary, changes, testing, how to evaluate)
+- Comprehensive tests: `test_comprehensive.R` and `test_complex.R`
 
 ## Overview
 
-The `grepreaper` package provides efficient file reading and filtering capabilities using the power of `grep` at the command line. It's designed for:
+`grepreaper` provides a fast, flexible way to filter and read large, line-oriented data files using a grep-like approach, then loads results via `data.table::fread` for downstream processing.
 
-- **Cross-platform compatibility** (Windows, macOS, Linux)
-- **Efficient large file processing** using `grep` and `data.table`
-- **Flexible metadata handling** (line numbers, filenames)
-- **CRAN-ready structure** for worldwide distribution
+## Key Features
+
+- Construct-and-read workflow: build command → read efficiently → targeted cleanup
+- Column targeting, counts, line numbers, file names, word boundaries, case-insensitivity, literals
+- Windows-friendly: uses `fread` + in-R filtering when external grep is not available
+- Robust quality checks: file existence, size hints, binary detection
 
 ## Installation
 
 ```r
-# Install from GitHub
-devtools::install_github("atharv-1511/grepreaper")
-
-# Or install from source
-install.packages("grepreaper_0.1.0.tar.gz", repos = NULL, type = "source")
+# from a local checkout
+# install.packages("devtools")
+# devtools::install()
 ```
 
-## Key Capabilities
+## Usage
 
-**Pattern Matching**
-- Fast regex and fixed-string pattern matching
-- Support for complex search patterns
-- Efficient filtering during file reading
-
-**Metadata Preservation**
-- Line numbers from source files
-- Source filename tracking
-- Automatic header handling and removal
-
-**Performance Features**
-- Vectorized operations for speed
-- Cached grep detection on Windows
-- Early exit optimizations
-- Memory-efficient processing
-
-**Cross-Platform Support**
-- Automatic Windows grep detection (Git/WSL)
-- Native Unix/Linux/macOS support
-- Graceful fallback handling
-
-## Core Functions
-
-### `grep_read()` - Main Function
-The heart of the package with multiple operation modes:
+Basic filtering:
 
 ```r
-# Basic pattern matching
-result <- grep_read(files = "data.csv", pattern = "search_term")
-
-# With line numbers and filenames
-result <- grep_read(
-  files = c("file1.csv", "file2.csv"),
-  pattern = "search_term",
-  show_line_numbers = TRUE,
-  include_filename = TRUE
-)
-
-# Count-only mode for performance
-counts <- grep_read(files = "*.csv", pattern = "error", count_only = TRUE)
-
-# Command preview mode
-cmd <- grep_read(files = "data.csv", pattern = "search_term", show_cmd = TRUE)
+res <- grep_read(files = "data/diamonds.csv", pattern = "Ideal")
 ```
 
-### Utility Functions
-- `monitor_performance()` - Track execution time and memory usage
-- `check_grep_availability()` - Verify system compatibility
-- `get_system_info()` - System information and status
-- `split.columns()` - Efficient text parsing utilities
-
-## Performance Benchmarks
-
-The package now includes comprehensive performance monitoring:
+Counts only:
 
 ```r
-# Monitor performance of operations
-library(grepreaper)
-
-perf_metrics <- monitor_performance({
-  result <- grep_read(files = "large_file.csv", pattern = "target")
-}, show_details = TRUE)
-
-# Typical performance improvements:
-# - Small files (<1MB): 2-3x faster
-# - Medium files (1-100MB): 5-10x faster  
-# - Large files (>100MB): 10x+ faster
+cnt <- grep_read(files = "data/diamonds.csv", pattern = "Ideal", count_only = TRUE)
 ```
 
-## Cross-Platform Compatibility
+Only the matched substring:
 
-The package automatically detects and uses the appropriate grep implementation:
+```r
+mt <- grep_read(files = "data/diamonds.csv", pattern = "Ideal", only_matching = TRUE)
+```
 
-- **Windows**: Automatically finds Git for Windows or WSL
-- **macOS/Linux**: Uses native grep command
-- **Fallback**: Graceful error handling when grep unavailable
+Column-specific search:
 
-## Contributing
+```r
+res <- grep_read(files = "data/small_diamonds.csv", pattern = "Ideal", search_column = "cut")
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Development Notes
 
-## License
+- Core entry point: `R/grep_read.r`
+- Utilities: `R/utils.r`
+- Clean `NAMESPACE`, `DESCRIPTION`
+- Comprehensive tests: run
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```r
+source("test_comprehensive.R")
+source("test_complex.R")
+```
+
+## Acknowledgments
+
+This work was completed under Google Summer of Code (GSoC) 2025 with mentor guidance focused on modularity, performance, and robust testing. Thank you!
