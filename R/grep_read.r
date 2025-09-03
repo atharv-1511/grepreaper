@@ -402,9 +402,9 @@ read_data_with_grep <- function(cmd, header, count_only, files, nrows, ...) {
   
   # For now, let's use a simpler approach that works on Windows
   # We'll read the file directly and filter it in R instead of using grep
-          if (length(files) == 1) {
+              if (length(files) == 1) {
     dat <- data.table::fread(files, header = header, ...)
-          } else {
+                } else {
     # Multiple files - read each and combine
     all_data <- list()
             for (file in files) {
@@ -419,7 +419,7 @@ read_data_with_grep <- function(cmd, header, count_only, files, nrows, ...) {
 
 # Helper function to process count data
 process_count_data <- function(dat, files) {
-              if (length(files) == 1) {
+                if (length(files) == 1) {
     # Single file: just return count
     return(data.table::data.table(source_file = basename(files[1]), count = nrow(dat)))
                 } else {
@@ -463,7 +463,7 @@ process_metadata_columns <- function(dat, files, show_line_numbers, include_file
   if (include_filename || length(files) > 1) {
                 if (length(files) == 1) {
       dat[, source_file := basename(files[1])]
-                } else {
+                  } else {
                   # For multiple files, we need to track which file each row came from
       # This is a simplified approach - in practice you might want more sophisticated tracking
       dat[, source_file := basename(files[1])]
