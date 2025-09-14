@@ -2,12 +2,8 @@
 
 # Export main functions
 export(grep_read)
+export(grep_count)
 export(build_grep_cmd)
-export(check_grep_availability)
-export(get_system_info)
-export(is_binary_file)
-export(monitor_performance)
-export(safe_system_call)
 export(split.columns)
 
 # Import from data.table
