@@ -83,6 +83,17 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   # Set an artificial header of V1, V2, etc.
   dat <- fread(cmd = cmd, header = F)
   
+  # Check if no matches were found
+  if (nrow(dat) == 0) {
+    # Return empty data.table with proper structure
+    shallow.copy <- fread(input = files[1], nrows = 1)
+    empty_dt <- data.table()
+    for (col_name in names(shallow.copy)) {
+      empty_dt[, (col_name) := character(0)]
+    }
+    return(empty_dt[])
+  }
+  
   shallow.copy <- fread(input = files[1], nrows = 10)
   
   # Handles all names except V1, which is addressed after potentially splitting columns downstream.
