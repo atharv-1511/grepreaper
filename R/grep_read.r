@@ -130,8 +130,28 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
     dat <- fread(cmd = cmd, header = F)
   }
   
-  # Check if no matches were found
-  if (nrow(dat) == 0) {
+  # Platform-specific post-processing
+  if (.Platform$OS.type == "windows") {
+    # Windows: Data is already in correct format, just check for empty results
+    if (nrow(dat) == 0) {
+      # Return empty data.table with proper structure
+      if (length(files) > 0 && file.exists(files[1])) {
+        shallow.copy <- fread(files[1], nrows = 1)
+        empty_dt <- data.table()
+        for (col_name in names(shallow.copy)) {
+          empty_dt[, (col_name) := character(0)]
+        }
+        return(empty_dt[])
+      } else {
+        return(data.table())
+      }
+    }
+    # Windows data is ready to return
+    return(dat[])
+  } else {
+    # Unix: Process grep output
+    # Check if no matches were found
+    if (nrow(dat) == 0) {
     # Return empty data.table with proper structure
     shallow.copy <- fread(input = files[1], nrows = 1)
     empty_dt <- data.table()
@@ -208,4 +228,5 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   
   # return data
   return(dat[])
+  } # End of Unix-specific branch
 }
