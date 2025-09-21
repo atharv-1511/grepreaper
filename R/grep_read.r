@@ -47,6 +47,7 @@
 #'   - Empty rows and all-NA rows are automatically filtered out
 
 # Fix data.table global variable bindings
+utils::globalVariables(c(":=", ".N", "V1", "V2", "V3", "count", "rn"))
 
 grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = "", invert = FALSE, ignore_case = FALSE, fixed = FALSE, show_cmd = FALSE, recursive = FALSE, word_match = FALSE, show_line_numbers = FALSE, only_matching = FALSE, nrows = Inf, skip = 0, header = TRUE, col.names = NULL, include_filename = FALSE, show_progress = FALSE, ...) {
   
