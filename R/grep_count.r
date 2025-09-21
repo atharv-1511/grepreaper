@@ -70,8 +70,39 @@ grep_count <- function(files = NULL, path = NULL, file_pattern = NULL, pattern =
     return(cmd)
   }
   
-  # Note:  header=F prevents placing the first file's count in the output's header.  This is different from including the values in the file's header in the count of matching patterns.
-  dat <- fread(cmd = cmd, header = F, skip = skip, showProgress = show_progress)
+  # Windows-compatible approach: Count matches in R
+  if (.Platform$OS.type == "windows") {
+    # Count matches in R for Windows compatibility
+    file_counts <- data.table(file = character(), count = integer())
+    for (file in files) {
+      if (file.exists(file)) {
+        file_data <- fread(file, header = header, skip = skip, showProgress = show_progress)
+        if (pattern != "") {
+          # Count pattern matches
+          if (ignore_case) {
+            pattern_lower <- tolower(pattern)
+            file_data_lower <- file_data[, lapply(.SD, tolower)]
+            matches <- apply(file_data_lower, 1, function(row) any(grepl(pattern_lower, row, fixed = fixed)))
+          } else {
+            matches <- apply(file_data, 1, function(row) any(grepl(pattern, row, fixed = fixed)))
+          }
+          if (invert) {
+            count <- sum(!matches)
+          } else {
+            count <- sum(matches)
+          }
+        } else {
+          count <- nrow(file_data)
+        }
+        file_counts <- rbindlist(list(file_counts, data.table(file = basename(file), count = count)))
+      }
+    }
+    dat <- file_counts
+  } else {
+    # Use grep command for Unix-like systems
+    # Note:  header=F prevents placing the first file's count in the output's header.  This is different from including the values in the file's header in the count of matching patterns.
+    dat <- fread(cmd = cmd, header = F, skip = skip, showProgress = show_progress)
+  }
   
   # Split first column if metadata is included.
   

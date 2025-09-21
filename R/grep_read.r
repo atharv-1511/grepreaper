@@ -81,8 +81,53 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
     return(cmd)
   }
   
-  # Set an artificial header of V1, V2, etc.
-  dat <- fread(cmd = cmd, header = F)
+  # Windows-compatible approach: Read files directly and filter in R
+  if (.Platform$OS.type == "windows") {
+    # Read all files and filter in R for Windows compatibility
+    all_data <- list()
+    for (file in files) {
+      if (file.exists(file)) {
+        file_data <- fread(file, header = header, skip = skip, showProgress = show_progress)
+        if (pattern != "") {
+          # Apply pattern filtering in R
+          if (ignore_case) {
+            pattern_lower <- tolower(pattern)
+            file_data_lower <- file_data[, lapply(.SD, tolower)]
+            matches <- apply(file_data_lower, 1, function(row) any(grepl(pattern_lower, row, fixed = fixed)))
+          } else {
+            matches <- apply(file_data, 1, function(row) any(grepl(pattern, row, fixed = fixed)))
+          }
+          if (invert) {
+            file_data <- file_data[!matches]
+          } else {
+            file_data <- file_data[matches]
+          }
+        }
+        if (include_filename) {
+          file_data[, source_file := basename(file)]
+        }
+        all_data[[file]] <- file_data
+      }
+    }
+    if (length(all_data) == 0) {
+      # Return empty data.table with proper structure
+      if (length(files) > 0 && file.exists(files[1])) {
+        shallow.copy <- fread(files[1], nrows = 1)
+        empty_dt <- data.table()
+        for (col_name in names(shallow.copy)) {
+          empty_dt[, (col_name) := character(0)]
+        }
+        return(empty_dt[])
+      } else {
+        return(data.table())
+      }
+    }
+    dat <- rbindlist(all_data, fill = TRUE)
+  } else {
+    # Use grep command for Unix-like systems
+    # Set an artificial header of V1, V2, etc.
+    dat <- fread(cmd = cmd, header = F)
+  }
   
   # Check if no matches were found
   if (nrow(dat) == 0) {
