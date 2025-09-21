@@ -85,7 +85,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   if (.Platform$OS.type == "windows") {
     # Read all files and filter in R for Windows compatibility
     all_data <- list()
-  for (file in files) {
+    for (file in files) {
       if (file.exists(file)) {
         file_data <- fread(file, header = header, skip = skip, showProgress = show_progress)
         if (pattern != "") {
@@ -94,12 +94,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
             pattern_lower <- tolower(pattern)
             file_data_lower <- file_data[, lapply(.SD, tolower)]
             matches <- apply(file_data_lower, 1, function(row) any(grepl(pattern_lower, row, fixed = fixed)))
-      } else {
+          } else {
             matches <- apply(file_data, 1, function(row) any(grepl(pattern, row, fixed = fixed)))
           }
           if (invert) {
             file_data <- file_data[!matches]
-       } else {
+          } else {
             file_data <- file_data[matches]
           }
         }
@@ -118,12 +118,12 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
           empty_dt[, (col_name) := character(0)]
         }
         return(empty_dt[])
-                } else {
+      } else {
         return(data.table())
       }
     }
     dat <- rbindlist(all_data, fill = TRUE)
-        } else {
+  } else {
     # Use grep command for Unix-like systems
     cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed)
     # Set an artificial header of V1, V2, etc.

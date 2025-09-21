@@ -131,6 +131,12 @@ split.columns <- function(x, column.names = NA, split = ":",
 #' 
 #' @export
 build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
+  # Windows compatibility check
+  if (.Platform$OS.type == "windows") {
+    warning("build_grep_cmd is not needed on Windows - using R-based filtering instead")
+    return("")
+  }
+  
   # Input validation
   if (!is.character(pattern) || length(pattern) != 1) {
     stop("'pattern' must be a single character string")
