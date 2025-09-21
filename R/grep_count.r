@@ -64,9 +64,9 @@ grep_count <- function(files = NULL, path = NULL, file_pattern = NULL, pattern =
   options <- c("-v", "-i", "-F", "-r", "-w", "-o", "-c", "-H")[c(invert, ignore_case, fixed, recursive, word_match, only_matching, count_only, need_metadata)]
   
   options_str <- paste(options, collapse = " ")
-  cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed)
-
+  
   if(show_cmd == TRUE){
+    cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed)
     return(cmd)
   }
   
@@ -100,6 +100,7 @@ grep_count <- function(files = NULL, path = NULL, file_pattern = NULL, pattern =
     dat <- file_counts
   } else {
     # Use grep command for Unix-like systems
+    cmd <- build_grep_cmd(pattern = pattern, files = files, options = options_str, fixed = fixed)
     # Note:  header=F prevents placing the first file's count in the output's header.  This is different from including the values in the file's header in the count of matching patterns.
     dat <- fread(cmd = cmd, header = F, skip = skip, showProgress = show_progress)
   }
