@@ -71,7 +71,7 @@ grep_count <- function(files = NULL, path = NULL, file_pattern = NULL, pattern =
   }
   
   # Windows-compatible approach: Count matches in R
-  if (.Platform$OS.type == "windows") {
+  if (is_windows()) {
     # Count matches in R for Windows compatibility
     file_counts <- data.table(file = character(), count = integer())
     for (file in files) {
@@ -106,7 +106,7 @@ grep_count <- function(files = NULL, path = NULL, file_pattern = NULL, pattern =
   }
   
   # Process columns based on platform
-  if (.Platform$OS.type == "windows") {
+  if (is_windows()) {
     # Windows: Data is already in correct format
     dat[, count := as.numeric(count)]
   } else {
@@ -127,7 +127,7 @@ grep_count <- function(files = NULL, path = NULL, file_pattern = NULL, pattern =
   }
   
   if(header == TRUE){
-    if (.Platform$OS.type == "windows") {
+    if (is_windows()) {
       # Windows: Read first file directly
       if (length(files) > 0 && file.exists(files[1])) {
         shallow.copy <- fread(files[1], nrows = 1)

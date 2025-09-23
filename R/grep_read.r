@@ -82,7 +82,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   }
   
   # Windows-compatible approach: Read files directly and filter in R
-  if (.Platform$OS.type == "windows") {
+  if (is_windows()) {
     # Read all files and filter in R for Windows compatibility
     all_data <- list()
     for (file in files) {
@@ -131,7 +131,7 @@ grep_read <- function(files = NULL, path = NULL, file_pattern = NULL, pattern = 
   }
   
   # Platform-specific post-processing
-  if (.Platform$OS.type == "windows") {
+  if (is_windows()) {
     # Windows: Data is already in correct format, just check for empty results
     if (nrow(dat) == 0) {
       # Return empty data.table with proper structure

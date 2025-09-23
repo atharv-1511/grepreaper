@@ -1,6 +1,19 @@
 # Fix data.table global variable bindings
 utils::globalVariables(c(":=", ".N", "V1", "V2", "V3"))
 
+#' Detect Windows reliably
+#' @keywords internal
+is_windows <- function() {
+  os_type <- .Platform$OS.type
+  sysname <- tryCatch(Sys.info()[["sysname"]], error = function(e) NA_character_)
+  r_os <- tolower(getRversion()); r_os # no-op to use getRversion to avoid NOTE
+  is_win_platform <- identical(tolower(os_type), "windows")
+  is_win_sysname <- identical(tolower(sysname), "windows")
+  # Fallback: check compiled R OS string
+  is_win_compiled <- grepl("mingw|windows", tolower(R.version$os))
+  isTRUE(is_win_platform || is_win_sysname || is_win_compiled)
+}
+
 #' Split columns based on a delimiter
 #' 
 #' Efficiently splits character vectors into multiple columns based on a specified delimiter.
