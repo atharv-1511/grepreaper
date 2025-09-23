@@ -179,9 +179,9 @@ build_grep_cmd <- function(pattern, files, options = "", fixed = FALSE) {
   }
   
   if (nchar(options) > 0) {
-    cmd <- sprintf("grep %s %s %s", options, shQuote(pattern), paste(shQuote(files), collapse = " "))
+    cmd <- sprintf("grep %s %s %s", options, base::shQuote(pattern), paste(base::shQuote(files), collapse = " "))
   } else {
-    cmd <- sprintf("grep %s %s", shQuote(pattern), paste(shQuote(files), collapse = " "))
+    cmd <- sprintf("grep %s %s", base::shQuote(pattern), paste(base::shQuote(files), collapse = " "))
   }
   
   return(cmd)

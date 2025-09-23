@@ -23,4 +23,3 @@ importFrom(stats, setNames)
 
 # Import from utils
 importFrom(utils, globalVariables)
-importFrom(utils, shQuote)
